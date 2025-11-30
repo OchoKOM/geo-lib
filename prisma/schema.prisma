@@ -1,0 +1,232 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- ENUMS ---
+
+enum UserRole {
+  READER      // Simple lecteur / Utilisateur connecté
+  AUTHOR      // Auteur de travaux (ex: Professeur, Doctorant)
+  LIBRARIAN   // Bibliothécaire (Gestion des prêts, catalogue)
+  ADMIN       // Administrateur système
+}
+
+enum FileType {
+  COVER_IMAGE
+  DOCUMENT_PDF
+  GEOJSON_DATA
+}
+
+// NOUVEAU : Types de documents académiques
+enum BookType {
+  TFC         // Travail de Fin de Cycle
+  MEMOIRE     // Mémoire de Master / DEA
+  THESE       // Thèse de Doctorat
+  ARTICLE     // Article Scientifique
+  OUVRAGE     // Livre / Manuel
+  RAPPORT     // Rapport de stage
+  AUTRE
+}
+
+enum GeometryType {
+  POINT           // Ex: Station météo, Site de forage
+  POLYGON         // Ex: Commune, Campus, Parcelle
+  LINESTRING      // Ex: Route, Rivière, Faille
+  MULTIPOLYGON    // Ex: Archipel, Zone discontinue
+  MULTILINESTRING // Ex: Réseau routier complexe
+}
+
+// --- UTILISATEURS & AUTHENTIFICATION (LUCIA) ---
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String    // Mot de passe haché (Argon2)
+  name          String
+  bio           String?   @db.Text
+  dateOfBirth   DateTime?
+  role          UserRole  @default(READER)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations Lucia Auth
+  sessions      Session[] 
+  keys          Key[]     
+
+  // Relations Métier
+  loans         Loan[]          
+  payments      Payment[]       
+  subscription  Subscription?   
+  authorProfile AuthorProfile?  
+}
+
+model Session {
+  id        String   @id @map("id")
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  ipAddress String?
+  userAgent String?
+  location  String?
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model Key {
+  id              String  @id 
+  userId          String  @map("user_id")
+  hashedValue     String? @map("hashed_value") 
+
+  user            User    @relation(fields: [userId], references: [id])
+
+  @@map("key") 
+}
+
+model AuthorProfile {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  biography   String    @db.Text
+  dateOfDeath DateTime? 
+  
+  books       Book[]    
+}
+
+// --- CATALOGUE & DOCUMENTS ---
+
+model Department {
+  id          String   @id @default(cuid())
+  name        String   @unique 
+  description String?
+  books       Book[]
+}
+
+model AcademicYear {
+  id        String   @id @default(cuid())
+  year      String   @unique 
+  startDate DateTime
+  endDate   DateTime
+  books     Book[]
+}
+
+model Book {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @db.Text
+  
+  // NOUVEAU : Le type de document
+  type        BookType @default(TFC)
+  
+  location    String?  
+  available   Boolean  @default(true) 
+  postedAt    DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  // Clés étrangères
+  authorId        String?
+  author          AuthorProfile? @relation(fields: [authorId], references: [id])
+  
+  departmentId    String?
+  department      Department?    @relation(fields: [departmentId], references: [id])
+  
+  academicYearId  String?
+  academicYear    AcademicYear?  @relation(fields: [academicYearId], references: [id])
+
+  // Fichiers associés
+  coverImageId    String?
+  coverImage      File?    @relation("BookCover", fields: [coverImageId], references: [id])
+  
+  documentFileId  String?
+  documentFile    File?    @relation("BookDocument", fields: [documentFileId], references: [id])
+
+  // Relations
+  loans           Loan[]
+  studyAreas      BookStudyArea[] 
+}
+
+// --- GÉOSPATIAL (CŒUR DE GEOLIB) ---
+
+model StudyArea {
+  id           String       @id @default(cuid())
+  name         String       
+  description  String?
+  
+  geometryType GeometryType @default(POLYGON)
+  centerLat    Float?       
+  centerLng    Float?
+
+  geojsonFileId String
+  geojsonFile   File     @relation(fields: [geojsonFileId], references: [id])
+
+  books       BookStudyArea[]
+}
+
+model BookStudyArea {
+  bookId      String
+  book        Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  
+  studyAreaId String
+  studyArea   StudyArea @relation(fields: [studyAreaId], references: [id], onDelete: Cascade)
+
+  @@id([bookId, studyAreaId])
+}
+
+// --- GESTION DES FICHIERS ---
+
+model File {
+  id        String   @id @default(cuid())
+  url       String   
+  name      String   
+  mimeType  String   
+  size      Int      
+  type      FileType
+  createdAt DateTime @default(now())
+
+  bookCovers    Book[]      @relation("BookCover")
+  bookDocuments Book[]      @relation("BookDocument")
+  studyAreas    StudyArea[]
+}
+
+// --- PRÊTS & FINANCE ---
+
+model Loan {
+  id          String    @id @default(cuid())
+  loanDate    DateTime  @default(now())
+  dueDate     DateTime  
+  returnDate  DateTime? 
+  isOverdue   Boolean   @default(false)
+  
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  
+  bookId      String
+  book        Book      @relation(fields: [bookId], references: [id])
+}
+
+model Subscription {
+  id        String   @id @default(cuid())
+  startDate DateTime @default(now())
+  endDate   DateTime
+  isActive  Boolean  @default(true)
+  
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  amount      Decimal  @db.Decimal(10, 2)
+  reason      String   
+  paymentDate DateTime @default(now())
+  
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+}
