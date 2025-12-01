@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ThemeProvider } from "@/context/ThemeProvider";
+import { ToastContainer } from "@/components/ToastContainer";
 
 
 
@@ -19,7 +21,11 @@ export default function RootLayout({
       <body
         className={`antialiased`}
       >
+        <ToastContainer />
+        <ThemeProvider>
         {children}
+
+        </ThemeProvider>
       </body>
     </html>
   );

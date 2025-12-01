@@ -19,7 +19,8 @@ import {
   LayoutDashboard,
   Menu,
   Sun,
-  X
+  X,
+  Settings
 } from 'lucide-react'
 import { Button } from './ui/button'
 import { useEffect, useState } from 'react'
@@ -32,6 +33,8 @@ import {
   AlertDialogTitle
 } from './ui/alert-dialog'
 import { usePathname } from 'next/dist/client/components/navigation'
+import { useTheme } from '@/context/ThemeProvider'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu'
 
 // -----------------------------------------------------------------------------
 // 1. Définition des Liens de Navigation
@@ -40,6 +43,7 @@ import { usePathname } from 'next/dist/client/components/navigation'
 type NavLink = {
   href: string
   label: string
+  page?: string
   icon: React.ReactNode
   // Rôles requis (INVITE est utilisé pour déconnecté)
   requires: ('INVITE' | 'READER' | 'AUTHOR' | 'LIBRARIAN' | 'ADMIN')[]
@@ -56,18 +60,21 @@ const commonLinks: NavLink[] = [
   {
     href: '/',
     label: 'Accueil',
+    page: "Accueil",
     icon: <Globe2 className='w-4 h-4' />,
     requires: ['INVITE', 'READER', 'AUTHOR', 'LIBRARIAN', 'ADMIN']
   },
   {
     href: '/map',
     label: 'Carte Interactive',
+    page: "Carte",
     icon: <Map className='w-4 h-4' />,
     requires: ['INVITE', 'READER', 'AUTHOR', 'LIBRARIAN', 'ADMIN']
   },
   {
     href: '/catalog',
     label: 'Catalogue',
+    page: "Catalogue",
     icon: <BookOpen className='w-4 h-4' />,
     requires: ['READER', 'AUTHOR', 'LIBRARIAN', 'ADMIN']
   }
@@ -77,68 +84,80 @@ const authenticatedLinks: NavLink[] = [
   {
     href: '/admin/loans',
     label: 'Gestion Prêts',
+    page: "Admin",
     icon: <BookOpen className='w-4 h-4' />,
     requires: ['LIBRARIAN', 'ADMIN']
   },
   {
     href: '/admin/dashboard',
     label: 'Tableau de Bord',
+    page: "Admin",
     icon: <LayoutDashboard className='w-4 h-4' />,
     requires: ['ADMIN']
   }
 ]
 
-// Fonction utilitaire pour simuler le Dark Mode (doit être implémentée)
-const DarkModeToggle = () => {
-  const [isDark, setIsDark] = useState(false)
+// Fichier : components/Header.tsx
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const htmlEl = document.documentElement
-      const storedTheme = localStorage.getItem('theme')
+/**
+ * Composant de sélection de thème utilisant DropdownMenuRadioGroup.
+ * Permet de choisir entre 'light', 'dark' et 'system'.
+ */
+const ThemeSelector = () => {
+  // Récupération de l'état actuel du thème et de la fonction de modification
+  const { theme, setTheme, isDark } = useTheme()
 
-      let initialDark = false
-
-      if (storedTheme === 'dark') {
-        initialDark = true
-      } else if (storedTheme === 'light') {
-        initialDark = false
-      } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        initialDark = true
-      }
-
-      if (initialDark) {
-        htmlEl.classList.add('dark')
-      } else {
-        htmlEl.classList.remove('dark')
-      }
-
-      setIsDark(initialDark)
-    }
-  }, [])
-
-  const toggleTheme = () => {
-    const htmlEl = document.documentElement
-    htmlEl.classList.toggle('dark')
-    const newIsDark = htmlEl.classList.contains('dark')
-    setIsDark(newIsDark)
-
-    if (typeof window !== 'undefined') {
-      const newTheme = newIsDark ? 'dark' : 'light'
-      localStorage.setItem('theme', newTheme)
-    }
+  // Détermine l'icône à afficher dans le bouton trigger en fonction du thème actuel
+  const TriggerIcon = theme === "system" ? Settings : isDark ? Moon : Sun
+  
+  // Fonction de gestion du changement de valeur
+  const handleThemeChange = (value: string) => {
+    // Assurez-vous de convertir la valeur en type Theme
+    setTheme(value as 'light' | 'dark' | 'system')
   }
 
   return (
-    <Button
-      className='cursor-pointer'
-      aria-label='Toggle Dark Mode'
-      variant='outline'
-      size='icon'
-      onClick={toggleTheme}
-    >
-      {isDark ? <Sun className='w-5 h-5' /> : <Moon className='w-5 h-5' />}
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        {/* Le Button sert d'élément déclencheur (Trigger) */}
+        <Button
+          className='cursor-pointer'
+          aria-label='Choisir le thème'
+          variant='outline'
+          size='icon'
+        >
+          {/* Affiche l'icône du thème actuel (sombre ou clair) */}
+          <TriggerIcon className='w-5 h-5' />
+          {/* Vous pouvez également utiliser Settings pour le trigger, au choix : */}
+          {/* <Settings className='w-5 h-5' /> */}
+        </Button>
+      </DropdownMenuTrigger>
+      
+      <DropdownMenuContent className='w-48'>
+        <DropdownMenuLabel>Sélectionner le Thème</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        
+        {/* Utilisation de DropdownMenuRadioGroup pour la sélection exclusive */}
+        <DropdownMenuRadioGroup value={theme} onValueChange={handleThemeChange}>
+          
+          <DropdownMenuRadioItem value='light'>
+            <Sun className='w-4 h-4 mr-2' />
+            Clair
+          </DropdownMenuRadioItem>
+          
+          <DropdownMenuRadioItem value='dark'>
+            <Moon className='w-4 h-4 mr-2' />
+            Sombre
+          </DropdownMenuRadioItem>
+          
+          <DropdownMenuRadioItem value='system'>
+            <Settings className='w-4 h-4 mr-2' />
+            Système
+          </DropdownMenuRadioItem>
+
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -147,8 +166,7 @@ const DarkModeToggle = () => {
 // -----------------------------------------------------------------------------
 export default function Header () {
   // Récupération de l'état d'authentification
-  const { isAuthenticated, role, user } = useAuth()
-
+  const { isAuthenticated, role, user } = useAuth();
   const pathname = usePathname()
   // Cette fonction gère la correspondance exacte ET la correspondance des sous-chemins (pour ignorer les /admin/loans/123 et les URL Params)
   const isActive = (href: string) => {
@@ -158,6 +176,11 @@ export default function Header () {
     }
     // 2. Tous les autres cas : vérifie si le chemin actuel COMMENCE par le href du lien
     return pathname.startsWith(href)
+  }
+  const activeLink = (href: string) => {
+   // Retourne le lien actif complet
+   const link = [...commonLinks, ...authenticatedLinks].find(link => link.href === href)
+   return link || null
   }
   // ✨ NOUVEAUTÉ : État pour gérer l'ouverture/fermeture du menu mobile
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -172,8 +195,8 @@ export default function Header () {
 
   return (
     // Utilisez un Fragment ou une Div pour englober le header et le menu
-    <>
-      <header className='h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-2 lg:px-4 shadow-sm z-50 shrink-0 sticky top-0'>
+    <header className='sticky top-0 z-20'>
+      <header className='h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-2 lg:px-4 shadow-sm z-50 shrink-0'>
         {/* 📚 Logo & Titre */}
         <Link className='flex items-center gap-3 dark:text-white' href='/'>
           <div className='bg-blue-600 text-white p-1.5 rounded-lg shadow-sm'>
@@ -182,9 +205,7 @@ export default function Header () {
           <h1 className='text-xl font-bold tracking-tight'>
             GeoLib{' '}
             <span className='text-slate-400 font-normal text-sm'>
-              {activeLinks.find(l => l.href === '/')
-                ? activeLinks.find(l => l.href === '/')?.label
-                : ''}
+              {activeLink(pathname)?.page || ''}
             </span>
           </h1>
         </Link>
@@ -211,7 +232,7 @@ export default function Header () {
         {/* ⚙️ Menu Droite (Actions) - NON MODIFIÉ */}
         <div className='flex items-center gap-3'>
           {/* Toggle Dark Mode (Gardé tel quel) */}
-          <DarkModeToggle />
+          <ThemeSelector />
 
           {/* Bouton d'Action (Connexion ou Compte/Déconnexion) - AJOUT DE LA VISIBILITÉ MOBILE POUR CONNEXION/DECONNEXION */}
           {isAuthenticated ? (
@@ -319,7 +340,7 @@ export default function Header () {
           )}
         </ul>
       </nav>
-    </>
+    </header>
   )
 }
 

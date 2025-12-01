@@ -44,85 +44,9 @@ import {
 } from '@/components/ui/alert-dialog'
 import { useAuth } from '@/components/AuthProvider'
 import { Input } from '../ui/input'
+import { showToast } from '@/hooks/useToast'
 
-/**
- * Affiche un message toast. Les toasts sont empilés dans un conteneur
- * unique pour éviter le chevauchement.
- *
- * @param msg Le message à afficher dans le toast.
- * @param variant La variante de couleur du toast (par défaut, succès, destructif, avertissement).
- */
-export const showToast = (
-  msg: string,
-  variant: 'default' | 'success' | 'destructive' | 'warning' = 'default'
-) => {
-  const TOAST_CONTAINER_ID = 'toast-container-list'
-  const DURATION = 3000 // Durée d'affichage du toast en ms
-  const ANIMATION_FADE_OUT = 500 // Durée de l'animation de disparition en ms
 
-  // --- 1. S'assurer que le conteneur existe ---
-  let container = document.getElementById(TOAST_CONTAINER_ID)
-
-  if (!container) {
-    container = document.createElement('div')
-    container.id = TOAST_CONTAINER_ID
-    // Configuration du conteneur :
-    // - fixed top-4 right-4 pour la position
-    // - flex, flex-col, space-y-2 pour empiler les toasts verticalement avec un espace
-    // - z-[99999] pour s'assurer qu'il est au-dessus de tout
-    // - max-w-sm pour limiter la largeur
-    container.className = 'fixed top-4 right-4 flex flex-col space-y-2 z-[99999] max-w-sm'
-    document.body.appendChild(container)
-  }
-
-  // --- 2. Création du Toast Individuel ---
-  const id = crypto.randomUUID()
-  const el = document.createElement('div')
-  const colors = {
-    default: 'bg-slate-800 text-white',
-    success: 'bg-green-600 text-white',
-    destructive: 'bg-red-600 text-white',
-    warning: 'bg-yellow-500 text-black'
-  }
-
-  el.id = id
-  // Classes du Toast :
-  // - relative w-full pour occuper la largeur disponible dans le conteneur
-  // - px-4 py-2 rounded shadow-lg
-  // - transition-all duration-500 ease-in-out pour une transition douce
-  // - animate-in fade-in slide-in-from-right-2 pour l'animation d'apparition
-  el.className = ` relative w-full ${
-    colors[variant || 'default']
-  } px-4 py-2 rounded shadow-lg transition-all duration-500 ease-in-out opacity-0 translate-x-full`
-  el.textContent = msg
-
-  // --- 3. Insertion du Toast dans le Conteneur ---
-  // Préfixer le conteneur pour que les nouveaux éléments apparaissent en haut
-  container.prepend(el)
-  
-  // Déclencher l'animation d'apparition après un court délai pour que le CSS soit appliqué
-  requestAnimationFrame(() => {
-    el.classList.remove('opacity-0', 'translate-x-full');
-    el.classList.add('opacity-100', 'translate-x-0');
-  });
-
-  // --- 4. Gestion de la Disparition ---
-  setTimeout(() => {
-    // Déclencher l'animation de disparition (slide out et fade out)
-    el.classList.remove('opacity-100', 'translate-x-0')
-    el.classList.add('opacity-0', 'translate-x-full')
-    
-    // Attendre la fin de l'animation pour supprimer l'élément du DOM
-    setTimeout(() => {
-      document.getElementById(id)?.remove()
-      
-      // OPTIONNEL : Supprimer le conteneur s'il est vide pour nettoyer le DOM
-      if (container.children.length === 0) {
-        container.remove()
-      }
-    }, ANIMATION_FADE_OUT)
-  }, DURATION)
-}
 
 type GeometryType = | 'Point' | 'MultiPoint' | 'LineString' | 'MultiLineString' | 'Polygon' | 'MultiPolygon' | 'GeometryCollection'
 
@@ -749,7 +673,7 @@ export default function GeoMap () {
     if (!isAuthenticated || !authorized) {
       showToast(
         "Accès Refusé : Vous devez être connecté en tant qu'Auteur ou Administrateur.",
-        'destructive'
+        'warning'
       )
       return
     }
