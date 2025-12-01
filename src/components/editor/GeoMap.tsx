@@ -11,7 +11,6 @@ import shp from 'shpjs'
 import JSZip from 'jszip'
 import shpwrite from '@mapbox/shp-write'
 import {
-  MapIcon,
   Layers,
   TableIcon,
   Download,
@@ -24,13 +23,15 @@ import {
   Database,
   Loader2,
   FolderOpen,
-  FileType,
+  FileBox,
   ChevronRight,
   Maximize2,
   Minimize2,
   ChevronLeft,
-  ZoomIn, // Import de l'icône de recherche (Zoom)
-  FileInput
+  ZoomIn,
+  FileInput,
+  Save,
+  PenLine
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -40,15 +41,29 @@ import {
   AlertDialogTitle,
   AlertDialogDescription,
   AlertDialogFooter,
-  AlertDialogCancel
+  AlertDialogCancel,
+  AlertDialogAction // Ajouté pour le bouton de confirmation
 } from '@/components/ui/alert-dialog'
 import { useAuth } from '@/components/AuthProvider'
 import { Input } from '../ui/input'
 import { showToast } from '@/hooks/useToast'
 
+// Ajout d'un composant Textarea simple s'il n'existe pas dans vos composants UI
+const Textarea = (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => (
+  <textarea
+    {...props}
+    className={`flex min-h-[80px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-950 dark:ring-offset-slate-950 dark:placeholder:text-slate-400 dark:focus-visible:ring-slate-300 ${props.className}`}
+  />
+)
 
-
-type GeometryType = | 'Point' | 'MultiPoint' | 'LineString' | 'MultiLineString' | 'Polygon' | 'MultiPolygon' | 'GeometryCollection'
+type GeometryType =
+  | 'Point'
+  | 'MultiPoint'
+  | 'LineString'
+  | 'MultiLineString'
+  | 'Polygon'
+  | 'MultiPolygon'
+  | 'GeometryCollection'
 
 interface LayerData {
   id: string
@@ -67,7 +82,7 @@ interface LayerData {
 interface ImportCandidate {
   id: string
   name: string
-  originalName: string // Nom du fichier source (ex: "mon_fichier.zip" ou "parcelle.shp")
+  originalName: string
   data: any
   type: 'geojson' | 'shapefile'
   featureCount: number
@@ -86,7 +101,6 @@ if (typeof window !== 'undefined') {
   })
 }
 
-// Couleurs vibrantes pour la cartographie
 const PALETTE = [
   '#3b82f6',
   '#ef4444',
@@ -127,15 +141,23 @@ export default function GeoMap () {
   )
   const [isProcessing, setIsProcessing] = useState(false)
 
+  // --- NOUVEAU : State pour la sauvegarde en BDD ---
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveFormData, setSaveFormData] = useState({
+    name: '',
+    description: ''
+  })
+
   // Table State
   const [tableData, setTableData] = useState<any[]>([])
   const [tableColumns, setTableColumns] = useState<string[]>([])
 
-  // Références aux inputs (pour déclencher le click via un bouton personnalisé)
+  // Refs Inputs
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
 
-  // --- 1. INITIALISATION & THÈME ---
+  // --- 1. INITIALISATION ---
   useEffect(() => {
     setIsMounted(true)
     const checkTheme = () =>
@@ -150,7 +172,6 @@ export default function GeoMap () {
     return () => observer.disconnect()
   }, [])
 
-  // Init Leaflet
   useEffect(() => {
     if (!isMounted || !mapContainerRef.current || mapRef.current) return
 
@@ -161,18 +182,12 @@ export default function GeoMap () {
 
     L.control.zoom({ position: 'bottomright' }).addTo(map)
 
-    // Setup Dessin
     if (drawnItemsRef.current) {
       map.addLayer(drawnItemsRef.current)
       const drawControl = new L.Control.Draw({
-        edit: {
-          featureGroup: drawnItemsRef.current
-        },
+        edit: { featureGroup: drawnItemsRef.current },
         draw: {
-          polygon: {
-            allowIntersection: false,
-            showArea: true
-          },
+          polygon: { allowIntersection: false, showArea: true },
           polyline: {},
           rectangle: {},
           circle: false,
@@ -183,7 +198,6 @@ export default function GeoMap () {
       map.addControl(drawControl)
     }
 
-    // Capture Dessin Créé
     map.on(L.Draw.Event.CREATED, (e: any) => {
       const feature = e.layer.toGeoJSON()
       feature.properties = {
@@ -200,10 +214,7 @@ export default function GeoMap () {
         visible: true,
         color: '#3b82f6',
         opacity: 1,
-        data: {
-          type: 'FeatureCollection',
-          features: [feature]
-        },
+        data: { type: 'FeatureCollection', features: [feature] },
         featureCount: 1,
         generatedId: true,
         generatedGeom: true
@@ -219,7 +230,7 @@ export default function GeoMap () {
     }
   }, [isMounted])
 
-  // Gestion dynamique du fond de carte (Dark/Light)
+  // Gestion du fond de carte
   const tileLayerRef = useRef<L.TileLayer | null>(null)
   useEffect(() => {
     if (!mapRef.current) return
@@ -234,54 +245,44 @@ export default function GeoMap () {
       attribution: isDarkMode ? '&copy; CartoDB' : '&copy; OSM'
     }).addTo(mapRef.current)
 
-    // Mettre l'ordre z-index au fond
     tileLayerRef.current.bringToBack()
   }, [isDarkMode, isMounted])
 
-  // Ajout de la gestion du chemin relatif pour les dossiers
   const getFileBaseName = (file: File): string | null => {
-    // @ts-ignore - Accéder à la propriété relativePath utilisée pour l'upload de dossiers
+    // @ts-ignore
     const fullPath = file.webkitRelativePath || file.name
-    // On retire le nom du dossier si présent, puis l'extension
     const fileNameWithExt = fullPath.split('/').pop()
     if (!fileNameWithExt) return null
     const parts = fileNameWithExt.split('.')
-    parts.pop() // Supprimer l'extension
-    // S'assurer que le nom de base n'est pas vide (cas de fichiers .gitignore, etc.)
+    parts.pop()
     const baseName = parts.join('.')
     return baseName || fileNameWithExt
   }
 
-  /**
-   * Analyse et traite la liste des fichiers importés (Shapefile, GeoJSON, ZIP).
-   * @param files Liste des fichiers FileList ou Array<File>.
-   */
+  // --- 2. IMPORTATION ---
   const processFiles = async (files: FileList | File[]) => {
-    // Vérification du dossier ou sélection vide
     if (!files || files.length === 0) {
       showToast('Aucun fichier ou dossier sélectionné.', 'warning')
       return
     }
 
     setIsProcessing(true)
-    setImportCandidates([]) // Réinitialiser avant le traitement
+    setImportCandidates([])
     setImportDialogOpen(true)
 
     const candidates: ImportCandidate[] = []
-    // Structure pour regrouper les Shapefiles par nom de base (ex: 'parcelle')
     const shapefileGroup: {
       [baseName: string]: { shp?: File; dbf?: File; prj?: File; files: File[] }
     } = {}
     const geojsonFiles: File[] = []
     const zipFiles: File[] = []
 
-    // 1. Classification des fichiers
     for (const file of Array.from(files)) {
       const ext = file.name.split('.').pop()?.toLowerCase()
       const base = getFileBaseName(file)
       if (!ext || !base || file.size === 0) continue
 
-      if (ext === 'shp' || ext === 'dbf' || ext === 'shx' || ext === 'prj') {
+      if (['shp', 'dbf', 'shx', 'prj'].includes(ext)) {
         if (!shapefileGroup[base]) shapefileGroup[base] = { files: [] }
         shapefileGroup[base].files.push(file)
         if (ext === 'shp') shapefileGroup[base].shp = file
@@ -289,12 +290,10 @@ export default function GeoMap () {
         if (ext === 'prj') shapefileGroup[base].prj = file
         continue
       }
-
-      if (ext === 'geojson' || ext === 'json') {
+      if (['geojson', 'json'].includes(ext)) {
         geojsonFiles.push(file)
         continue
       }
-
       if (ext === 'zip') {
         zipFiles.push(file)
         continue
@@ -302,22 +301,17 @@ export default function GeoMap () {
     }
 
     try {
-      // 2. Traitement des Shapefiles (regroupés par nom de base)
+      // Traitement Shapefiles
       for (const baseName in shapefileGroup) {
         const group = shapefileGroup[baseName]
-        // Vérification de l'intégrité minimale : .shp et .dbf sont nécessaires
         if (group.shp && group.dbf) {
           const zip = new JSZip()
-          // Ajouter TOUS les fichiers du groupe au ZIP virtuel (requis par shpjs)
-          group.files.forEach(file => {
-            zip.file(file.name, file)
-          })
-
+          group.files.forEach(file => zip.file(file.name, file))
           const zipBuffer = await zip.generateAsync({ type: 'arraybuffer' })
           const result = await shp(zipBuffer)
           const results = Array.isArray(result) ? result : [result]
 
-          results.forEach((fc, idx) => {
+          results.forEach(fc => {
             candidates.push({
               id: crypto.randomUUID(),
               name: fc.fileName?.replace('.shp', '') || baseName,
@@ -329,31 +323,17 @@ export default function GeoMap () {
               selected: true
             })
           })
-        } else {
-          const missingData = []
-          if (!group.shp) missingData.push('.shp')
-          if (!group.dbf) missingData.push('.dbf')
-
-            console.warn(`Shapefile incomplet ignoré: ${baseName}. Fichiers manquants: ${missingData.join(', ')}`)
-          console.warn(
-            `Shapefile incomplet ignoré: ${baseName}. Nécessite au moins .shp et .dbf.`
-          )
-          showToast(
-            `Shapefile incomplet ignoré (${baseName}). Fichiers manquants: ${missingData.join(', ')}.`,
-            'warning'
-          )
         }
       }
 
-      // 3. Traitement des fichiers GeoJSON
+      // Traitement GeoJSON
       for (const file of geojsonFiles) {
         try {
           const text = await file.text()
           const json = JSON.parse(text)
-          const ext = file.name.split('.').pop()
           candidates.push({
             id: crypto.randomUUID(),
-            name: file.name.replace(`.${ext}`, ''),
+            name: file.name.replace(`.${file.name.split('.').pop()}`, ''),
             originalName: file.name,
             data: json,
             type: 'geojson',
@@ -362,15 +342,11 @@ export default function GeoMap () {
             selected: true
           })
         } catch (err) {
-          console.error('Erreur JSON', err)
-          showToast(
-            `Erreur de parsing GeoJSON pour ${file.name}.`,
-            'destructive'
-          )
+          console.error(err)
         }
       }
 
-      // 4. Traitement des fichiers ZIP
+      // Traitement ZIP
       for (const file of zipFiles) {
         const buffer = await file.arrayBuffer()
         try {
@@ -394,60 +370,32 @@ export default function GeoMap () {
             })
           })
         } catch (err) {
-          console.error('Erreur ZIP', err)
-          showToast(
-            `Erreur de lecture du fichier ZIP ${file.name}.`,
-            'destructive'
-          )
+          console.error(err)
         }
       }
 
       setImportCandidates(candidates)
-
-      // Si aucune couche trouvée, on ferme la modale et affiche un message
       if (candidates.length === 0) {
         setImportDialogOpen(false)
-        showToast("Aucune donnée valide trouvée pour l'importation.", 'warning')
+        showToast('Aucune donnée valide trouvée.', 'warning')
       }
     } catch (error) {
-      showToast(
-        "Erreur lors de l'analyse des fichiers. Vérifiez le format (zip, shp, dbf, geojson).",
-        'destructive'
-      )
-      console.error("Erreur générale d'import:", error)
+      showToast("Erreur d'import.", 'destructive')
       setImportDialogOpen(false)
     } finally {
       setIsProcessing(false)
     }
   }
 
-  /**
-   * Gère la sélection de fichiers individuels (y compris ZIP, GeoJSON).
-   */
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (files) {
-      // La fonction processFiles gère l'analyse
-      processFiles(files)
-    }
-    // Réinitialisation de l'input pour permettre l'import du même fichier si nécessaire
+    if (e.target.files) processFiles(e.target.files)
     e.target.value = ''
   }
-
-  /**
-   * Gère la sélection d'un dossier pour les Shapefiles.
-   */
   const handleFolderImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (files) {
-      // La fonction processFiles gère l'analyse
-      processFiles(files)
-    }
-    // Réinitialisation de l'input pour permettre l'import du même dossier si nécessaire
+    if (e.target.files) processFiles(e.target.files)
     e.target.value = ''
   }
 
-  // Fonction pour basculer la sélection de toutes les couches candidates
   const toggleAllCandidates = (checked: boolean) => {
     setImportCandidates(prev => prev.map(c => ({ ...c, selected: checked })))
   }
@@ -475,47 +423,27 @@ export default function GeoMap () {
 
   // --- 3. GESTION CARTO ---
 
-  /**
-   * Centre la carte sur l'étendue de la couche spécifiée.
-   * @param id L'identifiant de la couche à zoomer.
-   */
   const zoomToLayer = (id: string) => {
     const layer = layerInstancesRef.current[id] as L.GeoJSON
-    if (!mapRef.current || !layer) {
-      showToast('Erreur: Couche Leaflet introuvable.', 'destructive')
-      return
-    }
-
+    if (!mapRef.current || !layer) return
     try {
-      // Obtenir les limites (Bounds) de la couche GeoJSON
       const bounds = layer.getBounds()
       if (bounds.isValid()) {
-        // Ajuster la vue de la carte aux limites
-        mapRef.current.fitBounds(bounds, {
-          padding: [50, 50], // Marge pour ne pas coller au bord de la carte
-          maxZoom: 16 // Zoom maximal pour éviter un zoom trop proche
-        })
+        mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 })
         showToast(
-          `Zoomé sur la couche : ${layers.find(l => l.id === id)?.name}`,
-        )
-      } else {
-        showToast(
-          "Impossible de calculer l'étendue de cette couche.",
-          'warning'
+          `Zoomé sur la couche : ${layers.find(l => l.id === id)?.name}`
         )
       }
     } catch (e) {
-      console.error('Could not fit bounds of layer:', e)
-      showToast("Erreur lors du calcul de l'étendue.", 'destructive')
+      console.error(e)
     }
   }
 
   const addLayerToMap = (layerData: LayerData) => {
     if (!mapRef.current) return
 
-    // Création de la couche Leaflet
     const layer = L.geoJSON(layerData.data, {
-      style: feature => ({
+      style: () => ({
         color: layerData.color,
         weight: 2,
         opacity: 1,
@@ -533,13 +461,10 @@ export default function GeoMap () {
         })
       },
       onEachFeature: (feature, l) => {
-        // Interaction
         l.on('click', e => {
           L.DomEvent.stopPropagation(e)
           setSelectedLayerId(layerData.id)
           loadAttributes(layerData)
-          // Highlight temporaire
-          // Utilisation d'un élément HTML simple pour le popup
           const popupContent = `
             <div class="font-bold text-sm text-slate-900">${
               layerData.name
@@ -547,15 +472,8 @@ export default function GeoMap () {
             <div class="text-xs text-slate-700">ID: ${
               feature.properties?.id || 'N/A'
             }</div>
-            ${
-              Object.keys(feature.properties || {}).length > 0
-                ? `<div class="mt-1 text-xs text-slate-600"> Propriétés: ${
-                    Object.keys(feature.properties).length
-                  } champs </div>`
-                : ''
-            }
           `
-          const popup = L.popup({ maxWidth: 300 })
+          L.popup({ maxWidth: 300 })
             .setLatLng(e.latlng)
             .setContent(popupContent)
             .openOn(mapRef.current!)
@@ -564,18 +482,14 @@ export default function GeoMap () {
     })
 
     layer.addTo(mapRef.current)
-
     try {
-      // Tenter d'ajuster la vue à l'étendue de la nouvelle couche
       const bounds = layer.getBounds()
-      if (bounds.isValid()) {
+      if (bounds.isValid())
         mapRef.current.fitBounds(bounds, { padding: [50, 50] })
-      }
     } catch (e) {
-      console.error('Could not fit bounds of layer:', e)
+      console.error(e)
     }
 
-    // Sauvegarde référence et état
     layerInstancesRef.current[layerData.id] = layer
     setLayers(prev => [...prev, layerData])
     setSelectedLayerId(layerData.id)
@@ -589,25 +503,20 @@ export default function GeoMap () {
   ) => {
     const layer = layerInstancesRef.current[id] as L.GeoJSON
     if (!layer) return
-
     layer.setStyle({
       color: newColor,
       fillColor: newColor,
-      fillOpacity: newOpacity * 0.2, // Base fill opacity relative
+      fillOpacity: newOpacity * 0.2,
       opacity: newOpacity
     })
-
-    // Pour les points
     layer.eachLayer((l: any) => {
-      if (l.setStyle) {
+      if (l.setStyle)
         l.setStyle({
           fillColor: newColor,
           fillOpacity: newOpacity * 0.8,
           opacity: newOpacity
         })
-      }
     })
-
     setLayers(prev =>
       prev.map(l =>
         l.id === id ? { ...l, color: newColor, opacity: newOpacity } : l
@@ -618,22 +527,14 @@ export default function GeoMap () {
   const toggleVisibility = (id: string) => {
     const layer = layerInstancesRef.current[id]
     if (!layer || !mapRef.current) return
-
-    if (mapRef.current.hasLayer(layer)) {
-      mapRef.current.removeLayer(layer)
-    } else {
-      mapRef.current.addLayer(layer)
-    }
+    if (mapRef.current.hasLayer(layer)) mapRef.current.removeLayer(layer)
+    else mapRef.current.addLayer(layer)
     setLayers(prev =>
       prev.map(l => (l.id === id ? { ...l, visible: !l.visible } : l))
     )
   }
 
   const deleteLayer = (id: string) => {
-    // Remplacer l'alert() par une alerte modale
-    // Si nous utilisions l'AlertDialog pour la confirmation, le code serait ici.
-    // Pour l'instant, nous évitons les alertes natives.
-    // NOTE: Pour les besoins de cette démo, je vais utiliser une confirmation interne simple.
     const layer = layerInstancesRef.current[id]
     if (layer && mapRef.current) mapRef.current.removeLayer(layer)
     delete layerInstancesRef.current[id]
@@ -644,7 +545,7 @@ export default function GeoMap () {
     }
   }
 
-  // --- 4. ATTRIBUTS & BDD ---
+  // --- 4. ATTRIBUTS ---
   const loadAttributes = (layer: LayerData) => {
     const features = layer.data.features || []
     if (features.length === 0) {
@@ -652,49 +553,59 @@ export default function GeoMap () {
       setTableColumns([])
       return
     }
-
-    // Extraction dynamique des colonnes
     const cols = new Set<string>()
     features.forEach((f: any) => {
       if (f.properties) Object.keys(f.properties).forEach(k => cols.add(k))
     })
     setTableColumns(Array.from(cols))
-
-    // Ajout de l'identifiant pour la table
     setTableData(
       features.map((f: any, i: number) => ({ _fid: i, ...f.properties }))
     )
     setActiveTab('attributes')
   }
 
-  const handleSaveToDB = async () => {
-    // Vérification Rôle
+  // --- 5. NOUVELLE FONCTION DE SAUVEGARDE EN BDD ---
+
+  // Étape 1 : Initialiser le dialogue (Remplacement du window.confirm)
+  const initiateSaveToDB = () => {
     const authorized = ['ADMIN', 'LIBRARIAN', 'AUTHOR'].includes(role)
     if (!isAuthenticated || !authorized) {
-      showToast(
-        "Accès Refusé : Vous devez être connecté en tant qu'Auteur ou Administrateur.",
-        'warning'
-      )
+      showToast('Accès Refusé : Droits insuffisants.', 'warning')
       return
     }
     if (!selectedLayerId) return
     const layer = layers.find(l => l.id === selectedLayerId)
     if (!layer) return
 
-    // Simulation d'une confirmation de sauvegarde
-    // Dans une implémentation réelle, on utiliserait un composant Modal pour remplacer le 'confirm()'
-    const isConfirmed = window.confirm(
-      `💾 Enregistrer "${layer.name}" dans la base de données PostGIS ?`
-    )
-    if (!isConfirmed) return
+    // Pré-remplir le formulaire avec le nom actuel de la couche
+    setSaveFormData({
+      name: layer.name,
+      description: `Zone d'étude importée le ${new Date().toLocaleDateString()}`
+    })
+    setSaveDialogOpen(true)
+  }
+
+  // Étape 2 : Exécuter la sauvegarde (Appelé par le dialogue)
+  const executeSaveToDB = async () => {
+    if (!selectedLayerId) return
+    const layer = layers.find(l => l.id === selectedLayerId)
+    if (!layer) return
+
+    // Validation simple
+    if (!saveFormData.name.trim()) {
+      showToast('Le nom de la zone est requis.', 'warning')
+      return
+    }
+
+    setIsSaving(true)
 
     try {
-      // Calculate center coordinates from the layer's features
       let centerLat = 0
       let centerLng = 0
       const features = layer.data.features || []
+
+      // Calcul du centre simple pour l'indexation
       if (features.length > 0) {
-        // Calculate bounds to get center
         const bounds = L.geoJSON(layer.data).getBounds()
         if (bounds.isValid()) {
           const center = bounds.getCenter()
@@ -705,108 +616,103 @@ export default function GeoMap () {
 
       const response = await fetch('/api/study-areas', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: layer.name,
-          description: `Imported layer: ${layer.name}`,
+          name: saveFormData.name, // Utilisation du nom du formulaire
+          description: saveFormData.description, // Utilisation de la desc du formulaire
           geometryType: layer.geometryType.toUpperCase(),
           geojson: layer.data,
           centerLat,
           centerLng
-        }),
+        })
       })
 
       const result = await response.json()
 
       if (response.ok && result.success) {
         showToast(
-          `Succès : La couche "${layer.name}" a été sécurisée en base de données.`,
+          `La zone "${saveFormData.name}" a été enregistrée avec succès.`,
           'success'
         )
+        setSaveDialogOpen(false) // Fermer le dialogue
       } else {
-        throw new Error(result.error || 'Unknown error')
+        throw new Error(result.error || 'Erreur inconnue')
       }
     } catch (e) {
-      showToast('Erreur lors de la sauvegarde.', 'destructive')
-      console.error('Erreur de sauvegarde DB:', e)
+      console.error('Erreur DB:', e)
+      showToast(
+        "Erreur lors de l'enregistrement en base de données.",
+        'destructive'
+      )
+    } finally {
+      setIsSaving(false)
     }
   }
+
+  // --- 6. EXPORTATION ---
+
   const exportShapefile = async (layer: LayerData) => {
-    // Fonction essentielle pour la compatibilité Shapefile/DBF
     const sanitizeProps = (props: any): any => {
-        const res: any = {};
-        for (const k in props) {
-            // Les champs DBF doivent être limités à 10 caractères, minuscules, et sans caractères spéciaux
-            const cleanK = k.substring(0, 10).toLowerCase().replace(/[^a-z0-9_]/g, '');
-            if (cleanK) {
-                const value = props[k];
-                // Convertir les objets complexes (souvent des métadonnées) en chaînes de caractères JSON
-                // et s'assurer que tout est une chaîne (limitation courante DBF à 255 caractères)
-                res[cleanK] = typeof value === 'object' && value !== null
-                    ? JSON.stringify(value).substring(0, 255)
-                    : String(value ?? ""); // Gère null/undefined
-            }
+      const res: any = {}
+      for (const k in props) {
+        const cleanK = k
+          .substring(0, 10)
+          .toLowerCase()
+          .replace(/[^a-z0-9_]/g, '')
+        if (cleanK) {
+          const value = props[k]
+          res[cleanK] =
+            typeof value === 'object' && value !== null
+              ? JSON.stringify(value).substring(0, 255)
+              : String(value ?? '')
         }
-        return res;
-    };
+      }
+      return res
+    }
 
-    const features = layer.data?.features || [];
+    const features = layer.data?.features || []
     if (features.length === 0) {
-        showToast('Cette couche ne contient aucune géométrie à exporter.', 'warning');
-        return;
-    }
-    
-    // 1. Préparer le GeoJSON : filtrer les géométries non supportées et désinfecter les propriétés
-    const exportGeoJSON = {
-        type: 'FeatureCollection',
-        features: features
-            // Filtrer les GeometryCollection, qui ne sont pas supportées par shp-write
-            .filter((f: any) => f.geometry && f.geometry.type !== 'GeometryCollection') 
-            .map((f: any) => ({
-                ...f,
-                properties: sanitizeProps(f.properties) // Appliquer la désinfection
-            }))
-    };
-
-    if (exportGeoJSON.features.length === 0) {
-        showToast("Aucune géométrie valide restante pour l'exportation Shapefile.", 'warning');
-        return;
-    }
-
-    const baseName = layer.name.replace(/[^a-zA-Z0-9_-]/g, '_');
-
-    try {
-        const opts = {
-            folder: baseName,
-            // Le WKT (Well-Known Text) standard pour la projection WGS84 (EPSG:4326)
-            prj: 'GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["Degree",0.0174532925199433]]',
-            outputType: 'blob'
-        };
-
-        // 2. Utilisation de shpwrite.zip
-        const result: Blob = await shpwrite.zip(exportGeoJSON, opts) as Blob;
-
-        if (result) {
-            downloadBlob(result, `${baseName}.zip`);
-            showToast(`Succès : Exportation Shapefile (ZIP) de "${layer.name}" terminée.`, 'success');
-        } else {
-             showToast('Erreur lors de la génération du Shapefile ZIP (résultat vide).', 'destructive');
-        }
-    } catch (error) {
-        console.error("Erreur lors de l'exportation du Shapefile (shpwrite.zip) :", error);
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        showToast(`Erreur lors de l'exportation du Shapefile`, 'destructive');
-    }
-};
-
-  const handleExport = async (format: 'geojson' | 'zip') => {
-    if (!selectedLayerId) {
-      showToast('Sélectionnez une couche à exporter.', 'warning')
+      showToast('Aucune géométrie à exporter.', 'warning')
       return
     }
 
+    const exportGeoJSON = {
+      type: 'FeatureCollection',
+      features: features
+        .filter(
+          (f: any) => f.geometry && f.geometry.type !== 'GeometryCollection'
+        )
+        .map((f: any) => ({ ...f, properties: sanitizeProps(f.properties) }))
+    }
+
+    if (exportGeoJSON.features.length === 0) {
+      showToast('Aucune géométrie valide pour Shapefile.', 'warning')
+      return
+    }
+
+    const baseName = layer.name.replace(/[^a-zA-Z0-9_-]/g, '_')
+    try {
+      const opts = {
+        folder: baseName,
+        prj: 'GEOGCS["GCS_WGS_1984",DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["Degree",0.0174532925199433]]',
+        outputType: 'blob'
+      }
+      // @ts-ignore
+      const result: Blob = (await shpwrite.zip(exportGeoJSON, opts)) as Blob
+      if (result) {
+        downloadBlob(result, `${baseName}.zip`)
+        showToast(`Exportation Shapefile réussie.`, 'success')
+      }
+    } catch (error) {
+      showToast(`Erreur lors de l'exportation Shapefile`, 'destructive')
+    }
+  }
+
+  const handleExport = async (format: 'geojson' | 'zip') => {
+    if (!selectedLayerId) {
+      showToast('Sélectionnez une couche.', 'warning')
+      return
+    }
     const layer = layers.find(l => l.id === selectedLayerId)
     if (!layer) return
 
@@ -817,7 +723,6 @@ export default function GeoMap () {
       downloadBlob(blob, `${layer.name}.geojson`)
       return
     }
-
     exportShapefile(layer)
   }
 
@@ -829,18 +734,19 @@ export default function GeoMap () {
     document.body.appendChild(a)
     a.click()
     URL.revokeObjectURL(url)
-    document.body.removeChild(a) // Nettoyage
+    document.body.removeChild(a)
   }
 
-  // Utilitaire pour la table des attributs
-  const selectedLayer = useMemo(() => {
-    return layers.find(l => l.id === selectedLayerId)
-  }, [layers, selectedLayerId])
+  const selectedLayer = useMemo(
+    () => layers.find(l => l.id === selectedLayerId),
+    [layers, selectedLayerId]
+  )
 
-  // --- RENDU DES COMPOSANTS INTERNES ---
+  // --- RENDU MODALES ET LISTES ---
 
   const renderImportModal = () => {
-    const allSelected = importCandidates.every(c => c.selected)
+    const allSelected =
+      importCandidates.length > 0 && importCandidates.every(c => c.selected)
     const noneSelected = importCandidates.every(c => !c.selected)
 
     return (
@@ -854,17 +760,16 @@ export default function GeoMap () {
                 <Database className='w-5 h-5' />
               )}
               {isProcessing
-                ? 'Analyse des données en cours...'
+                ? 'Analyse en cours...'
                 : 'Sélectionnez les couches à importer'}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {isProcessing
-                ? 'Veuillez patienter pendant le traitement des fichiers (Shapefile, GeoJSON ou ZIP).'
-                : `L'analyse a identifié ${importCandidates.length} couche(s) potentielle(s). Décochez celles que vous ne souhaitez pas ajouter à la carte.`}
+                ? 'Traitement des fichiers...'
+                : `${importCandidates.length} couche(s) identifiée(s).`}
             </AlertDialogDescription>
           </AlertDialogHeader>
 
-          {/* NOUVEAU: Case à cocher Tout Sélectionner/Désélectionner */}
           {importCandidates.length > 0 && !isProcessing && (
             <div
               className='flex items-center gap-4 p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700'
@@ -879,25 +784,13 @@ export default function GeoMap () {
               >
                 {allSelected && <Check className='w-3.5 h-3.5 text-white' />}
               </div>
-              <span className='font-bold text-sm text-slate-800 dark:text-slate-200'>
+              <span className='font-bold text-sm'>
                 Tout {allSelected ? 'Désélectionner' : 'Sélectionner'}
               </span>
             </div>
           )}
 
-          {/* Contenu de la liste des candidats */}
           <div className='max-h-80 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg p-3'>
-            {importCandidates.length === 0 && !isProcessing && (
-              <p className='text-center text-slate-500 py-6'>
-                Aucun fichier GeoJSON, Shapefile (.shp/.dbf/.prj) ou ZIP valide
-                n&apos;a été trouvé.
-              </p>
-            )}
-            {isProcessing && (
-              <div className='flex justify-center items-center h-20'>
-                <Loader2 className='w-6 h-6 animate-spin text-blue-600' />
-              </div>
-            )}
             {!isProcessing &&
               importCandidates.map(candidate => (
                 <div
@@ -913,7 +806,6 @@ export default function GeoMap () {
                     )
                   }
                 >
-                  {/* Case à cocher personnalisée */}
                   <div
                     className='mt-1 flex items-center justify-center h-5 w-5 rounded-md border-2 border-slate-300 dark:border-slate-600 flex-shrink-0'
                     style={{
@@ -926,47 +818,18 @@ export default function GeoMap () {
                       <Check className='w-3.5 h-3.5 text-white' />
                     )}
                   </div>
-                  {/* Icône du type de géométrie */}
-                  <div className='flex-shrink-0 text-blue-500 dark:text-blue-400'>
-                    {/* Une meilleure implémentation utiliserait une icône basée sur le type de géométrie */}
-                    {candidate.geometryType.includes('Point') && (
-                      <MapIcon className='w-4 h-4' />
-                    )}
-                    {candidate.geometryType.includes('Line') && (
-                      <ChevronRight className='w-4 h-4' />
-                    )}
-                    {candidate.geometryType.includes('Polygon') && (
-                      <Layers className='w-4 h-4' />
-                    )}
-                    {candidate.geometryType.includes('Unknown') && (
-                      <AlertTriangle className='w-4 h-4' />
-                    )}
-                    {/* Remplacement des autres icônes par une icône par défaut */}
-                    {!candidate.geometryType.includes('Point') &&
-                      !candidate.geometryType.includes('Line') &&
-                      !candidate.geometryType.includes('Polygon') && (
-                        <FileType className='w-4 h-4' />
-                      )}
-                  </div>
                   <div className='flex-1 min-w-0'>
                     <div className='flex justify-between items-center'>
-                      {/* Nom de la couche */}
-                      <span className='font-semibold text-sm truncate text-slate-800 dark:text-slate-200'>
+                      <span className='font-semibold text-sm truncate'>
                         {candidate.name}
                       </span>
-                      {/* Type de géométrie */}
                       <span className='text-[10px] bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded text-slate-600 dark:text-slate-300 font-mono flex-shrink-0 ml-2'>
                         {candidate.geometryType}
                       </span>
                     </div>
-                    <div className='flex justify-between items-center text-xs text-slate-500 mt-1'>
-                      {/* Source et nombre d'objets */}
-                      <span className='truncate'>
-                        Source: {candidate.originalName}
-                      </span>
-                      <span className='flex-shrink-0 ml-4'>
-                        {candidate.featureCount} objets
-                      </span>
+                    <div className='text-xs text-slate-500 mt-1'>
+                      Source: {candidate.originalName} ({candidate.featureCount}{' '}
+                      obj)
                     </div>
                   </div>
                 </div>
@@ -979,9 +842,7 @@ export default function GeoMap () {
               onClick={confirmImport}
               disabled={isProcessing || noneSelected}
             >
-              <FileInput />
-              Importer la sélection (
-              {importCandidates.filter(c => c.selected).length})
+              <FileInput className='w-4 h-4 mr-2' /> Importer
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -989,142 +850,146 @@ export default function GeoMap () {
     )
   }
 
-  const renderLayerList = () => (
-    <div className='p-2 space-y-2 overflow-y-auto flex-1'>
-      {layers.length === 0 ? (
-        <p className='text-center text-sm text-slate-500 mt-8'>
-          Aucune couche chargée. Importez un GeoJSON, Shapefile ou ZIP.
-        </p>
-      ) : (
-        layers.map(layer => (
-          <div
-            key={layer.id}
-            className={` flex items-center gap-3 p-2 rounded-lg transition-all cursor-pointer border-2 ${
-              selectedLayerId === layer.id
-                ? 'bg-blue-50/70 dark:bg-blue-900/50 border-blue-500'
-                : 'hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent'
-            } `}
-            onClick={() => {
-              setSelectedLayerId(layer.id)
-              loadAttributes(layer)
-            }}
-          >
-            {/* Icône de couleur et de visibilité */}
-            <div
-              className='flex flex-col items-center flex-shrink-0 w-8 h-8 rounded-full border border-slate-300 dark:border-slate-700'
-              style={{ backgroundColor: layer.color }}
-            >
-              {/* Bouton de Visibilité */}
-              <button
-                onClick={e => {
-                  e.stopPropagation()
-                  toggleVisibility(layer.id)
-                }}
-                className='p-1 hover:text-white transition-colors'
-              >
-                {layer.visible ? (
-                  <Eye className='w-4 h-4 text-white drop-shadow-sm' />
-                ) : (
-                  <EyeOff className='w-4 h-4 text-slate-300/80 drop-shadow-sm' />
-                )}
-              </button>
-            </div>
-            {/* Infos de la couche */}
-            <div className='flex-1 min-w-0'>
-              <p className='text-sm font-medium truncate'>{layer.name}</p>
-              <p className='text-xs text-slate-500 dark:text-slate-400 truncate'>
-                {layer.geometryType} ({layer.featureCount} obj.)
-              </p>
-            </div>
-            {/* Actions */}
-            <div className='flex gap-1 flex-shrink-0'>
-              {/* NOUVEAU: Bouton Zoom to Layer */}
-              <button
-                onClick={e => {
-                  e.stopPropagation()
-                  zoomToLayer(layer.id)
-                }}
-                className='p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-500 transition-colors'
-                title='Zoomer sur la couche'
-              >
-                <ZoomIn className='w-4 h-4' />
-              </button>
+  // --- NOUVEAU : Rendu de la Modale de Sauvegarde ---
+  const renderSaveDialog = () => {
+    return (
+      <AlertDialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+        <AlertDialogContent className='sm:max-w-[425px]'>
+          <AlertDialogHeader>
+            <AlertDialogTitle className='flex items-center gap-2 text-blue-600 dark:text-blue-400'>
+              <Database className='w-5 h-5' />
+              Sauvegarder la Zone d'Étude
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Définissez les propriétés de cette couche avant de l'enregistrer
+              dans la base de données PostGIS.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
 
-              <button
-                onClick={e => {
-                  e.stopPropagation()
-                  deleteLayer(layer.id)
-                }}
-                className='p-1.5 rounded-full hover:bg-red-100 dark:hover:bg-red-900/50 text-red-500 transition-colors'
-                title='Supprimer la couche'
+          <div className='grid gap-4 py-4'>
+            <div className='grid gap-2'>
+              <label
+                htmlFor='layer-name'
+                className='text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
               >
-                <Trash2 className='w-4 h-4' />
-              </button>
+                Nom de la zone
+              </label>
+              <Input
+                id='layer-name'
+                value={saveFormData.name}
+                onChange={e =>
+                  setSaveFormData({ ...saveFormData, name: e.target.value })
+                }
+                placeholder='Ex: Parcelle Agricole B2'
+                className='col-span-3'
+              />
+            </div>
+            <div className='grid gap-2'>
+              <label
+                htmlFor='layer-desc'
+                className='text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
+              >
+                Description (Optionnel)
+              </label>
+              <Textarea
+                id='layer-desc'
+                value={saveFormData.description}
+                onChange={e =>
+                  setSaveFormData({
+                    ...saveFormData,
+                    description: e.target.value
+                  })
+                }
+                placeholder='Détails sur la localisation, le propriétaire, etc...'
+                className='col-span-3'
+              />
+            </div>
+            <div className='bg-slate-50 dark:bg-slate-900 p-3 rounded text-xs text-slate-500 flex items-center gap-2'>
+              <AlertTriangle className='w-4 h-4 text-amber-500' />
+              <span>
+                La géométrie sera automatiquement convertie et indexée.
+              </span>
             </div>
           </div>
-        ))
-      )}
-    </div>
-  )
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSaving}>Annuler</AlertDialogCancel>
+            {/* Utilisation de onClick au lieu de AlertDialogAction pour contrôler la fermeture après succès */}
+            <Button
+              onClick={executeSaveToDB}
+              disabled={isSaving || !saveFormData.name}
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className='w-4 h-4 mr-2 animate-spin' />{' '}
+                  Enregistrement...
+                </>
+              ) : (
+                <>
+                  <Save className='w-4 h-4 mr-2' /> Enregistrer
+                </>
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    )
+  }
 
   const renderLayerSettings = () => {
     if (!selectedLayer) return null
-
-    const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      updateLayerStyle(selectedLayer.id, e.target.value, selectedLayer.opacity)
-    }
-
-    const handleOpacityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const newOpacity = parseFloat(e.target.value)
-      updateLayerStyle(selectedLayer.id, selectedLayer.color, newOpacity)
-    }
-
     return (
       <div className='p-4 border-t border-slate-100 dark:border-slate-800 space-y-3 bg-slate-50 dark:bg-slate-900/50'>
         <h3 className='font-semibold text-sm uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-2'>
           <Settings className='w-4 h-4' /> Style de {selectedLayer.name}
         </h3>
-        {/* Sélecteur de Couleur */}
         <div className='flex items-center justify-between text-sm'>
           <label className='text-slate-600 dark:text-slate-400'>Couleur:</label>
           <div className='flex items-center gap-2'>
             <Input
               type='color'
               value={selectedLayer.color}
-              onChange={handleColorChange}
+              onChange={e =>
+                updateLayerStyle(
+                  selectedLayer.id,
+                  e.target.value,
+                  selectedLayer.opacity
+                )
+              }
               className='w-8 h-8 p-0 border-0 cursor-pointer rounded-md overflow-hidden'
             />
-            <span className='font-mono text-xs'>{selectedLayer.color}</span>
           </div>
         </div>
-        {/* Sélecteur d'Opacité */}
         <div>
-          <label
-            htmlFor='opacity-slider'
-            className='text-sm text-slate-600 dark:text-slate-400 flex justify-between items-center'
-          >
+          <label className='text-sm text-slate-600 dark:text-slate-400 flex justify-between items-center'>
             Opacité:{' '}
-            <span className='font-mono text-xs text-slate-800 dark:text-slate-200'>
+            <span className='font-mono text-xs'>
               {(selectedLayer.opacity * 100).toFixed(0)}%
             </span>
           </label>
           <Input
-            id='opacity-slider'
             type='range'
             min='0.1'
             max='1'
             step='0.05'
             value={selectedLayer.opacity}
-            onChange={handleOpacityChange}
-            className='w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-700'
+            onChange={e =>
+              updateLayerStyle(
+                selectedLayer.id,
+                selectedLayer.color,
+                parseFloat(e.target.value)
+              )
+            }
+            className='w-full h-2 bg-slate-200 rounded-lg cursor-pointer dark:bg-slate-700'
           />
         </div>
-        {/* Actions Supplémentaires */}
         <div className='flex flex-col gap-2 pt-2 border-t border-slate-200 dark:border-slate-700'>
+          {/* BOUTON D'ENREGISTREMENT MODIFIÉ */}
           <Button
-            variant='outline'
+            variant='default'
             size='sm'
-            onClick={handleSaveToDB}
+            onClick={initiateSaveToDB}
+            className='bg-blue-600 hover:bg-blue-700 text-white'
             disabled={
               !isAuthenticated ||
               !['ADMIN', 'LIBRARIAN', 'AUTHOR'].includes(role)
@@ -1139,7 +1004,7 @@ export default function GeoMap () {
               className='flex-1'
               onClick={() => handleExport('geojson')}
             >
-              <Download className='w-4 h-4 mr-2' /> Exporter GeoJSON
+              <Download className='w-4 h-4 mr-2' /> GeoJSON
             </Button>
             <Button
               variant='outline'
@@ -1147,7 +1012,7 @@ export default function GeoMap () {
               className='flex-1'
               onClick={() => handleExport('zip')}
             >
-              <Download className='w-4 h-4 mr-2' /> Exporter Shapefile (ZIP)
+              <Download className='w-4 h-4 mr-2' /> SHP (Zip)
             </Button>
           </div>
         </div>
@@ -1155,90 +1020,7 @@ export default function GeoMap () {
     )
   }
 
-  const renderAttributesTable = () => (
-    <div className='flex-1 p-4 overflow-auto'>
-      {tableData.length === 0 ? (
-        <p className='text-center text-sm text-slate-500 mt-8'>
-          Sélectionnez une couche pour afficher ses attributs.
-        </p>
-      ) : (
-        <div className='w-full overflow-x-auto'>
-          <table className='min-w-full divide-y divide-slate-200 dark:divide-slate-700'>
-            <thead className='bg-slate-50 dark:bg-slate-800 sticky top-0 z-10'>
-              <tr>
-                {tableColumns.map(col => (
-                  <th
-                    key={col}
-                    className='px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap'
-                  >
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className='bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800'>
-              {tableData.map((row, index) => (
-                <tr
-                  key={index}
-                  className='hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors'
-                >
-                  {tableColumns.map(col => (
-                    <td
-                      key={col}
-                      className='px-4 py-2 whitespace-nowrap text-sm text-slate-900 dark:text-slate-300'
-                    >
-                      {/* Afficher l'identifiant pour la colonne interne s'il est présent */}
-                      {col === '_fid'
-                        ? row._fid
-                        : row[col] !== undefined
-                        ? String(row[col])
-                        : 'N/A'}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  )
-
-  const renderTablePanel = () => (
-    <div
-      className={` absolute bottom-0 left-0 w-full bg-white dark:bg-slate-900 shadow-2xl border-t border-slate-200 dark:border-slate-800 transition-all duration-300 ease-in-out z-30 ${
-        tableExpanded ? 'h-[90%] md:h-[60%] lg:h-[70%] xl:h-[80%]' : 'h-10'
-      } `}
-    >
-      {/* Tête de la table (toujours visible) */}
-      <div
-        className='flex items-center justify-between p-2 cursor-pointer bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700'
-        onClick={() => setTableExpanded(prev => !prev)}
-      >
-        <h2 className='font-bold flex items-center gap-2 text-sm uppercase tracking-wider text-slate-600 dark:text-slate-400'>
-          <TableIcon className='w-4 h-4' /> Table des Attributs{' '}
-          {selectedLayer ? `(${selectedLayer.name})` : ''}
-        </h2>
-        <Button size='sm' variant='ghost' className='h-6 w-6 p-0'>
-          {tableExpanded ? (
-            <Minimize2 className='w-4 h-4' />
-          ) : (
-            <Maximize2 className='w-4 h-4' />
-          )}
-        </Button>
-      </div>
-      {/* Corps de la table (visible si étendu) */}
-      <div
-        className={` h-[calc(100%-40px)] transition-opacity duration-200 ${
-          tableExpanded ? 'opacity-100 visible' : 'opacity-0 hidden'
-        } `}
-      >
-        {renderAttributesTable()}
-      </div>
-    </div>
-  )
-
-  // --- RENDER PRINCIPAL ---
+  // --- RENDU PRINCIPAL ---
   if (!isMounted)
     return (
       <div className='h-[calc(100vh-64px)] w-full flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 text-slate-500'>
@@ -1249,7 +1031,6 @@ export default function GeoMap () {
 
   return (
     <div className='flex h-[calc(100vh-64px)] w-full overflow-hidden relative bg-slate-100 dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-200'>
-      {/* --- BARRE LATÉRALE (GAUCHE) --- */}
       <div
         className={` flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 transition-all duration-300 z-20 shadow-xl ${
           sidebarOpen
@@ -1257,14 +1038,11 @@ export default function GeoMap () {
             : 'w-0 -translate-x-full opacity-0 overflow-hidden'
         } `}
       >
-        {/* Header Sidebar */}
         <div className='p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col gap-3 bg-slate-50 dark:bg-slate-900'>
           <h2 className='font-bold flex items-center justify-between gap-2 text-sm uppercase tracking-wider text-slate-600 dark:text-slate-400'>
             <span className='flex items-center gap-2'>
-              <Layers className='w-4 h-4' /> Gestion des Couches (
-              {layers.length})
+              <Layers className='w-4 h-4' /> Gestion ({layers.length})
             </span>
-            {/* Bouton pour fermer/ouvrir la sidebar */}
             <Button
               size='sm'
               variant='ghost'
@@ -1274,9 +1052,7 @@ export default function GeoMap () {
               <ChevronLeft className='w-4 h-4' />
             </Button>
           </h2>
-          {/* NOUVEAU: Menu d'Importation Séparé et Accessible */}
-          <div className='flex gap-2 flex-wrap'>
-            {/* Importation de Fichiers (GeoJSON, ZIP, SHP regroupés manuellement) */}
+          <div className='flex gap-2 cursor-pointer flex-wrap'>
             <div className='relative flex-1'>
               <Input
                 type='file'
@@ -1289,17 +1065,16 @@ export default function GeoMap () {
               <Button
                 variant='secondary'
                 size='sm'
-                className='w-full text-xs justify-center hover:bg-blue-600 hover:text-white'
+                className='w-full text-xs justify-center cursor-pointer hover:bg-blue-600 hover:text-white'
                 onClick={() => fileInputRef.current?.click()}
               >
-                <FileType className='w-4 h-4 mr-1' /> Importer des fichiers
+                <FileBox className='w-4 h-4 mr-1' /> Fichiers
               </Button>
             </div>
-            {/* Importation de Dossier (pour les Shapefiles complets) */}
-            <div className='relative flex-1'>
+            <div className='relative flex-1 cursor-pointer'>
               <Input
                 type='file'
-                // @ts-ignore webkitdirectory="" directory=""
+                // @ts-ignore
                 webkitdirectory=''
                 directory=''
                 className='absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10'
@@ -1309,28 +1084,83 @@ export default function GeoMap () {
               <Button
                 variant='secondary'
                 size='sm'
-                className='w-full text-xs justify-center hover:bg-green-600 hover:text-white'
+                className='w-full text-xs justify-center cursor-pointer hover:bg-green-600 hover:text-white'
                 onClick={() => folderInputRef.current?.click()}
               >
-                <FolderOpen className='w-4 h-4 mr-1' /> Importer un dossier
+                <FolderOpen className='w-4 h-4 mr-1' /> Dossier
               </Button>
             </div>
           </div>
         </div>
-        {/* Liste des Couches */}
-        {renderLayerList()}
-        {/* Panneau de Style et d'Exportation */}
+        <div className='p-2 space-y-2 overflow-y-auto flex-1'>
+          {layers.map(layer => (
+            <div
+              key={layer.id}
+              className={` flex items-center gap-3 p-2 rounded-lg transition-all cursor-pointer border-2 ${
+                selectedLayerId === layer.id
+                  ? 'bg-blue-50/70 dark:bg-blue-900/50 border-blue-500'
+                  : 'hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent'
+              } `}
+              onClick={() => {
+                setSelectedLayerId(layer.id)
+                loadAttributes(layer)
+              }}
+            >
+              <div
+                className='flex flex-col items-center flex-shrink-0 w-8 h-8 rounded-full border border-slate-300 dark:border-slate-700'
+                style={{ backgroundColor: layer.color }}
+              >
+                <button
+                  onClick={e => {
+                    e.stopPropagation()
+                    toggleVisibility(layer.id)
+                  }}
+                  className='p-1 hover:text-white transition-colors'
+                >
+                  {layer.visible ? (
+                    <Eye className='w-4 h-4 text-white drop-shadow-sm' />
+                  ) : (
+                    <EyeOff className='w-4 h-4 text-slate-300/80 drop-shadow-sm' />
+                  )}
+                </button>
+              </div>
+              <div className='flex-1 min-w-0'>
+                <p className='text-sm font-medium truncate'>{layer.name}</p>
+                <p className='text-xs text-slate-500 truncate'>
+                  {layer.geometryType} ({layer.featureCount})
+                </p>
+              </div>
+              <div className='flex gap-1 flex-shrink-0'>
+                <button
+                  onClick={e => {
+                    e.stopPropagation()
+                    zoomToLayer(layer.id)
+                  }}
+                  className='p-1.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-500 transition-colors'
+                >
+                  <ZoomIn className='w-4 h-4' />
+                </button>
+                <button
+                  onClick={e => {
+                    e.stopPropagation()
+                    deleteLayer(layer.id)
+                  }}
+                  className='p-1.5 rounded-full hover:bg-red-100 dark:hover:bg-red-900/50 text-red-500 transition-colors'
+                >
+                  <Trash2 className='w-4 h-4' />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
         {selectedLayer && renderLayerSettings()}
       </div>
-
-      {/* --- CARTE PRINCIPALE --- */}
       <div className='flex-1 relative'>
         <div
           ref={mapContainerRef}
           className='absolute inset-0 z-10'
           id='map-container'
         />
-        {/* Bouton pour ouvrir la barre latérale */}
         {!sidebarOpen && (
           <Button
             size='sm'
@@ -1340,12 +1170,80 @@ export default function GeoMap () {
             <Layers className='w-4 h-4 mr-2' /> Ouvrir Couches
           </Button>
         )}
-        {/* Panneau de la Table des Attributs */}
-        {renderTablePanel()}
-      </div>
 
-      {/* Modale d'Importation */}
+        <div
+          className={` absolute bottom-0 left-0 w-full bg-white dark:bg-slate-900 shadow-2xl border-t border-slate-200 dark:border-slate-800 transition-all duration-300 ease-in-out z-30 ${
+            tableExpanded ? 'h-[90%] md:h-[60%]' : 'h-10'
+          } `}
+        >
+          <div
+            className='flex items-center justify-between p-2 cursor-pointer bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700'
+            onClick={() => setTableExpanded(prev => !prev)}
+          >
+            <h2 className='font-bold flex items-center gap-2 text-sm uppercase tracking-wider text-slate-600 dark:text-slate-400'>
+              <TableIcon className='w-4 h-4' /> Table des Attributs{' '}
+              {selectedLayer ? `(${selectedLayer.name})` : ''}
+            </h2>
+            <Button size='sm' variant='ghost' className='h-6 w-6 p-0'>
+              {tableExpanded ? (
+                <Minimize2 className='w-4 h-4' />
+              ) : (
+                <Maximize2 className='w-4 h-4' />
+              )}
+            </Button>
+          </div>
+          <div
+            className={` h-[calc(100%-40px)] transition-opacity duration-200 ${
+              tableExpanded ? 'opacity-100 visible' : 'opacity-0 hidden'
+            } `}
+          >
+            <div className='flex-1 p-4 overflow-auto h-full'>
+              {tableData.length > 0 && (
+                <div className='w-full overflow-x-auto'>
+                  <table className='min-w-full divide-y divide-slate-200 dark:divide-slate-700'>
+                    <thead className='bg-slate-50 dark:bg-slate-800 sticky top-0 z-10'>
+                      <tr>
+                        {tableColumns.map(col => (
+                          <th
+                            key={col}
+                            className='px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase whitespace-nowrap'
+                          >
+                            {col}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className='bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800'>
+                      {tableData.map((row, i) => (
+                        <tr
+                          key={i}
+                          className='hover:bg-slate-50 dark:hover:bg-slate-800'
+                        >
+                          {tableColumns.map(col => (
+                            <td
+                              key={col}
+                              className='px-4 py-2 whitespace-nowrap text-sm text-slate-900 dark:text-slate-300'
+                            >
+                              {col === '_fid'
+                                ? row._fid
+                                : row[col] !== undefined
+                                ? String(row[col])
+                                : 'N/A'}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
       {renderImportModal()}
+      {/* Ajout du rendu du dialogue de sauvegarde */}
+      {renderSaveDialog()}
     </div>
   )
 }
