@@ -82,6 +82,8 @@ interface LayerData {
   opacity: number
   data: any // GeoJSON FeatureCollection
   featureCount: number
+  generatedId: boolean
+  generatedGeom: boolean
 }
 
 interface ImportCandidate {
@@ -224,7 +226,9 @@ export default function GeoMap () {
           type: 'FeatureCollection',
           features: [feature]
         },
-        featureCount: 1
+        featureCount: 1,
+        generatedId: true,
+        generatedGeom: true
       }
       addLayerToMap(newLayer)
     })
@@ -477,7 +481,9 @@ export default function GeoMap () {
         color: getRandomColor(),
         opacity: 1,
         data: c.data,
-        featureCount: c.featureCount
+        featureCount: c.featureCount,
+        generatedId: false,
+        generatedGeom: false
       })
     })
     setImportDialogOpen(false)
@@ -508,7 +514,6 @@ export default function GeoMap () {
         })
         showToast(
           `Zoomé sur la couche : ${layers.find(l => l.id === id)?.name}`,
-          'success'
         )
       } else {
         showToast(
@@ -701,17 +706,45 @@ export default function GeoMap () {
     if (!isConfirmed) return
 
     try {
-      // Simulation Appel API
-      console.log('Saving to DB:', {
-        name: layer.name,
-        type: layer.geometryType,
-        geojson: layer.data
+      // Calculate center coordinates from the layer's features
+      let centerLat = 0
+      let centerLng = 0
+      const features = layer.data.features || []
+      if (features.length > 0) {
+        // Calculate bounds to get center
+        const bounds = L.geoJSON(layer.data).getBounds()
+        if (bounds.isValid()) {
+          const center = bounds.getCenter()
+          centerLat = center.lat
+          centerLng = center.lng
+        }
+      }
+
+      const response = await fetch('/api/study-areas', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: layer.name,
+          description: `Imported layer: ${layer.name}`,
+          geometryType: layer.geometryType as GeometryType,
+          geojson: layer.data,
+          centerLat,
+          centerLng
+        }),
       })
-      await new Promise(r => setTimeout(r, 1200)) // Fake latency
-      showToast(
-        `Succès : La couche "${layer.name}" a été sécurisée en base de données.`,
-        'success'
-      )
+
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        showToast(
+          `Succès : La couche "${layer.name}" a été sécurisée en base de données.`,
+          'success'
+        )
+      } else {
+        throw new Error(result.error || 'Unknown error')
+      }
     } catch (e) {
       showToast('Erreur lors de la sauvegarde.', 'destructive')
       console.error('Erreur de sauvegarde DB:', e)
@@ -770,7 +803,7 @@ export default function GeoMap () {
         };
 
         // 2. Utilisation de shpwrite.zip
-        const result = await shpwrite.zip(exportGeoJSON, opts);
+        const result: Blob = await shpwrite.zip(exportGeoJSON, opts) as Blob;
 
         if (result) {
             downloadBlob(result, `${baseName}.zip`);

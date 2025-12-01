@@ -1,10 +1,11 @@
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  extensions = [postgis]
 }
 
 // --- ENUMS ---
@@ -156,12 +157,15 @@ model Book {
 
 model StudyArea {
   id           String       @id @default(cuid())
-  name         String       
+  name         String
   description  String?
-  
+
   geometryType GeometryType @default(POLYGON)
-  centerLat    Float?       
+  centerLat    Float?
   centerLng    Float?
+
+  // PostGIS geometry field for spatial data
+  geometry     Unsupported("geometry(Geometry, 4326)")?
 
   geojsonFileId String
   geojsonFile   File     @relation(fields: [geojsonFileId], references: [id])
