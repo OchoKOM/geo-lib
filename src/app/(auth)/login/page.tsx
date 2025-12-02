@@ -9,6 +9,7 @@ import { useSearchParams } from 'next/navigation'
 import { loginAction } from '../../auth/actions'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { getSession } from '@/lib/auth'
 
 // --- TYPES DE RETOUR ---
 type AuthActionState = {

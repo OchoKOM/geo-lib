@@ -50,6 +50,52 @@ function geojsonToWKT(geojson: GeoJSONGeometry): string {
   throw new Error(`Unsupported geometry type or invalid coordinates: ${type}`)
 }
 
+// --- NOUVEAU : Méthode GET pour la recherche ---
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const query = searchParams.get('q')
+
+    // Si aucun terme de recherche n'est fourni, on peut renvoyer une liste vide ou les derniers ajouts
+    if (!query || query.length < 2) {
+      return NextResponse.json({ results: [] })
+    }
+
+    // Recherche dans la base de données (insensible à la casse si configuré dans Prisma/DB)
+    const studyAreas = await prisma.studyArea.findMany({
+      where: {
+        OR: [
+          { name: { contains: query, mode: 'insensitive' } },
+          { description: { contains: query, mode: 'insensitive' } }
+        ]
+      },
+      include: {
+        geojsonFile: true // On inclut le fichier pour récupérer l'URL ou les données si stockées
+      },
+      take: 10 // Limiter à 10 résultats pour la performance
+    })
+
+    // Pour chaque zone trouvée, nous devons idéalement renvoyer le GeoJSON.
+    // NOTE: Si vos GeoJSON sont très lourds, il vaudrait mieux ne renvoyer que les métadonnées
+    // et faire un second appel pour charger la géométrie au clic.
+    // Ici, nous supposons que nous pouvons récupérer le contenu via l'URL du fichier ou qu'il faut le fetcher.
+    
+    // Simplification : nous renvoyons les métadonnées. Le frontend devra peut-être fetcher le GeoJSON via l'URL du fichier.
+    
+    return NextResponse.json({
+      success: true,
+      results: studyAreas
+    })
+
+  } catch (error) {
+    console.error('Error searching study areas:', error)
+    return NextResponse.json(
+      { error: 'Internal server error during search' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     // TEMPORARILY BYPASSED FOR TESTING - Check authentication and authorization

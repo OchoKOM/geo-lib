@@ -11,18 +11,48 @@ import shp from 'shpjs'
 import JSZip from 'jszip'
 import shpwrite from '@mapbox/shp-write'
 import {
-  Layers, TableIcon, Download, Eye, EyeOff, Trash2, Settings, Check, AlertTriangle, Database, Loader2, FolderOpen, FileBox, ChevronRight, Maximize2, Minimize2, ChevronLeft, ZoomIn, FileInput, Save, PenLine
+  Layers,
+  TableIcon,
+  Download,
+  Eye,
+  EyeOff,
+  Trash2,
+  Settings,
+  Check,
+  AlertTriangle,
+  Database,
+  Loader2,
+  FolderOpen,
+  FileBox,
+  ChevronRight,
+  Maximize2,
+  Minimize2,
+  ChevronLeft,
+  ZoomIn,
+  FileInput,
+  Save,
+  PenLine,
+  Copy,
+  Search,
+  MapPin,
+  Plus
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
-  AlertDialog,  AlertDialogContent,  AlertDialogHeader,  AlertDialogTitle,  AlertDialogDescription,  AlertDialogFooter,  AlertDialogCancel,  AlertDialogAction // Ajouté pour le bouton de confirmation
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction
 } from '@/components/ui/alert-dialog'
 import { useAuth } from '@/components/AuthProvider'
 import { Input } from '../ui/input'
 import { showToast } from '@/hooks/useToast'
 import { useUploadThing } from '@/lib/uploadthing'
 
-// Ajout d'un composant Textarea simple s'il n'existe pas dans vos composants UI
 const Textarea = (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => (
   <textarea
     {...props}
@@ -30,12 +60,19 @@ const Textarea = (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => (
   />
 )
 
-type GeometryType = | 'Point' | 'MultiPoint' | 'LineString' | 'MultiLineString' | 'Polygon' | 'MultiPolygon' | 'GeometryCollection'
+type GeometryType =
+  | 'Point'
+  | 'MultiPoint'
+  | 'LineString'
+  | 'MultiLineString'
+  | 'Polygon'
+  | 'MultiPolygon'
+  | 'GeometryCollection'
 
 interface LayerData {
   id: string
   name: string
-  type: 'geojson' | 'shapefile' | 'draw'
+  type: 'geojson' | 'shapefile' | 'draw' | 'database'
   geometryType: GeometryType | string
   visible: boolean
   color: string
@@ -57,6 +94,18 @@ interface ImportCandidate {
   selected: boolean
 }
 
+interface SearchResult {
+  id: string
+  name: string
+  description: string | null
+  geometryType: string
+  centerLat: number
+  centerLng: number
+  geojsonFile?: {
+    url: string
+  }
+}
+
 // --- CONFIGURATION LEAFLET ---
 if (typeof window !== 'undefined') {
   delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -69,20 +118,29 @@ if (typeof window !== 'undefined') {
 }
 
 const PALETTE = [
-  '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#6366f1'
+  '#3b82f6',
+  '#ef4444',
+  '#10b981',
+  '#f59e0b',
+  '#8b5cf6',
+  '#ec4899',
+  '#06b6d4',
+  '#84cc16',
+  '#6366f1'
 ]
+
 const getRandomColor = () => PALETTE[Math.floor(Math.random() * PALETTE.length)]
 
 export default function GeoMap () {
   const { role, isAuthenticated } = useAuth()
-    const { startUpload, isUploading } = useUploadThing("geoJsonUploader", {
-    onClientUploadComplete: (res) => {
-      showToast("Fichier GeoJSON téléversé avec succès", "success");
+  const { startUpload, isUploading } = useUploadThing('geoJsonUploader', {
+    onClientUploadComplete: res => {
+      showToast('Fichier GeoJSON téléversé avec succès', 'success')
     },
     onUploadError: (error: Error) => {
-      showToast(`Erreur d'upload: ${error.message}`, "destructive");
-    },
-  });
+      showToast(`Erreur d'upload: ${error.message}`, 'destructive')
+    }
+  })
   const [isMounted, setIsMounted] = useState(false)
 
   // Refs Leaflet
@@ -107,7 +165,15 @@ export default function GeoMap () {
   )
   const [isProcessing, setIsProcessing] = useState(false)
 
-  // --- NOUVEAU : State pour la sauvegarde en BDD ---
+  // --- Search State (Modifié) ---
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  // Nouvel état pour gérer le chargement individuel par ID
+  const [loadingResults, setLoadingResults] = useState<Record<string, boolean>>({})
+
+  // DB Save State
+  const [studyAreaId, setStudyAreaId] = useState<string | null>(null)
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveFormData, setSaveFormData] = useState({
@@ -144,7 +210,7 @@ export default function GeoMap () {
     const map = L.map(mapContainerRef.current, {
       zoomControl: false,
       attributionControl: false
-    }).setView([-4.4419, 15.2663], 11) // Kinshasa
+    }).setView([-4.4419, 15.2663], 11)
 
     L.control.zoom({ position: 'topright' }).addTo(map)
 
@@ -227,6 +293,7 @@ export default function GeoMap () {
 
   // --- 2. IMPORTATION ---
   const processFiles = async (files: FileList | File[]) => {
+    // ... code existant inchangé pour l'import de fichiers locaux ...
     if (!files || files.length === 0) {
       showToast('Aucun fichier ou dossier sélectionné.', 'warning')
       return
@@ -267,7 +334,7 @@ export default function GeoMap () {
     }
 
     try {
-      // Traitement Shapefiles
+      // Shapefiles
       for (const baseName in shapefileGroup) {
         const group = shapefileGroup[baseName]
         if (group.shp && group.dbf) {
@@ -292,7 +359,7 @@ export default function GeoMap () {
         }
       }
 
-      // Traitement GeoJSON
+      // GeoJSON
       for (const file of geojsonFiles) {
         try {
           const text = await file.text()
@@ -312,7 +379,7 @@ export default function GeoMap () {
         }
       }
 
-      // Traitement ZIP
+      // ZIP
       for (const file of zipFiles) {
         const buffer = await file.arrayBuffer()
         try {
@@ -387,6 +454,100 @@ export default function GeoMap () {
     setImportCandidates([])
   }
 
+  // --- 2bis. GESTION DE LA RECHERCHE (Modifiée) ---
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return
+    setIsSearching(true)
+    setSearchResults([])
+    try {
+      const response = await fetch(
+        `/api/study-areas?q=${encodeURIComponent(searchQuery)}`
+      )
+      const data = await response.json()
+      if (data.success) {
+        setSearchResults(data.results)
+        if (data.results.length === 0) {
+          showToast('Aucun résultat trouvé.')
+        }
+      } else {
+        showToast('Erreur lors de la recherche.', 'destructive')
+      }
+    } catch (error) {
+      console.error(error)
+      showToast('Erreur réseau.', 'destructive')
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  const loadSearchResult = async (result: SearchResult) => {
+    // Vérification anti-doublon avant même de commencer
+    if (layerInstancesRef.current[result.id]) {
+        showToast(`La zone "${result.name}" est déjà sur la carte`)
+        zoomToLayer(result.id)
+        return
+    }
+
+    // 1. Définir l'état de chargement spécifique pour CETTE zone
+    setLoadingResults(prev => ({ ...prev, [result.id]: true }))
+
+    try {
+      let geojsonData = null
+
+      // 2. Fetcher le GeoJSON complet via l'URL
+      if (result.geojsonFile?.url) {
+        const response = await fetch(result.geojsonFile.url)
+        geojsonData = await response.json()
+      } else {
+        // Fallback minimaliste
+        geojsonData = {
+            type: 'FeatureCollection',
+            features: [
+                {
+                    type: 'Feature',
+                    properties: {
+                        name: result.name,
+                        description: result.description,
+                        db_id: result.id
+                    },
+                    geometry: {
+                        type: 'Point',
+                        coordinates: [result.centerLng, result.centerLat]
+                    }
+                }
+            ]
+        }
+      }
+
+      // 3. Ajouter à la carte
+      // Note: addLayerToMap appellera automatiquement loadAttributes
+      // ce qui remplira la table avec les vraies données du GeoJSON
+      if (geojsonData) {
+        addLayerToMap({
+            id: result.id,
+            name: result.name,
+            type: 'database',
+            geometryType: result.geometryType,
+            visible: true,
+            color: getRandomColor(),
+            opacity: 1,
+            data: geojsonData,
+            featureCount: geojsonData.features?.length || 1,
+            generatedId: false,
+            generatedGeom: false
+        })
+      }
+
+    } catch (error) {
+      console.error(error)
+      showToast("Impossible de charger la géométrie.", 'destructive')
+    } finally {
+      // 4. Désactiver le chargement spécifique
+      setLoadingResults(prev => ({ ...prev, [result.id]: false }))
+    }
+  }
+
   // --- 3. GESTION CARTO ---
 
   const zoomToLayer = (id: string) => {
@@ -396,9 +557,8 @@ export default function GeoMap () {
       const bounds = layer.getBounds()
       if (bounds.isValid()) {
         mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 })
-        showToast(
-          `Zoomé sur la couche : ${layers.find(l => l.id === id)?.name}`
-        )
+        // Toast optionnel ici, peut être retiré si jugé trop verbeux
+        // showToast(`Zoomé sur : ${layers.find(l => l.id === id)?.name}`)
       }
     } catch (e) {
       console.error(e)
@@ -407,6 +567,11 @@ export default function GeoMap () {
 
   const addLayerToMap = (layerData: LayerData) => {
     if (!mapRef.current) return
+
+    if (layerInstancesRef.current[layerData.id]) {
+        zoomToLayer(layerData.id)
+        return
+    }
 
     const layer = L.geoJSON(layerData.data, {
       style: () => ({
@@ -431,13 +596,15 @@ export default function GeoMap () {
           L.DomEvent.stopPropagation(e)
           setSelectedLayerId(layerData.id)
           loadAttributes(layerData)
+          
+          // Popup simplifié
+          const props = feature.properties || {}
+          const entries = Object.entries(props).slice(0, 3) // Montrer max 3 propriétés
+          const propsHtml = entries.map(([k, v]) => `<div><b>${k}:</b> ${v}</div>`).join('')
+
           const popupContent = `
-            <div class="font-bold text-sm text-slate-900">${
-              layerData.name
-            }</div>
-            <div class="text-xs text-slate-700">ID: ${
-              feature.properties?.id || 'N/A'
-            }</div>
+            <div class="font-bold text-sm text-slate-900 mb-1">${layerData.name}</div>
+            <div class="text-xs text-slate-700">${propsHtml}</div>
           `
           L.popup({ maxWidth: 300 })
             .setLatLng(e.latlng)
@@ -459,7 +626,7 @@ export default function GeoMap () {
     layerInstancesRef.current[layerData.id] = layer
     setLayers(prev => [...prev, layerData])
     setSelectedLayerId(layerData.id)
-    loadAttributes(layerData)
+    loadAttributes(layerData) // C'est ici que la table d'attributs est peuplée
   }
 
   const updateLayerStyle = (
@@ -529,9 +696,7 @@ export default function GeoMap () {
     )
   }
 
-  // --- 5. NOUVELLE FONCTION DE SAUVEGARDE EN BDD ---
-
-  // Étape 1 : Initialiser le dialogue (Remplacement du window.confirm)
+  // --- 5. SAUVEGARDE EN BDD ---
   const initiateSaveToDB = () => {
     const authorized = ['ADMIN', 'LIBRARIAN', 'AUTHOR'].includes(role)
     if (!isAuthenticated || !authorized) {
@@ -542,7 +707,6 @@ export default function GeoMap () {
     const layer = layers.find(l => l.id === selectedLayerId)
     if (!layer) return
 
-    // Pré-remplir le formulaire avec le nom actuel de la couche
     setSaveFormData({
       name: layer.name,
       description: `Zone d'étude importée le ${new Date().toLocaleDateString()}`
@@ -550,8 +714,7 @@ export default function GeoMap () {
     setSaveDialogOpen(true)
   }
 
-  // Étape 2 : Exécuter la sauvegarde (Appelé par le dialogue)
- const executeSaveToDB = async () => {
+  const executeSaveToDB = async () => {
     if (!selectedLayerId) return
     const layer = layers.find(l => l.id === selectedLayerId)
     if (!layer) return
@@ -564,27 +727,24 @@ export default function GeoMap () {
     setIsSaving(true)
 
     try {
-      // 1. Préparation du fichier pour UploadThing
-      // On convertit l'objet JavaScript (layer.data) en chaîne de caractères, puis en Blob/File
-      const geoJsonString = JSON.stringify(layer.data);
-      const blob = new Blob([geoJsonString], { type: "application/json" });
-      
-      // On crée un fichier avec un nom propre et une extension .geojson
-      const fileName = `${saveFormData.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.geojson`;
-      const fileToUpload = new File([blob], fileName, { type: "application/json" });
+      const geoJsonString = JSON.stringify(layer.data)
+      const blob = new Blob([geoJsonString], { type: 'application/json' })
 
-      // 2. Téléversement vers UploadThing
-      // startUpload attend un tableau de fichiers
-      const uploadResult = await startUpload([fileToUpload]);
+      const fileName = `${saveFormData.name
+        .replace(/[^a-z0-9]/gi, '_')
+        .toLowerCase()}.geojson`
+      const fileToUpload = new File([blob], fileName, {
+        type: 'application/json'
+      })
+
+      const uploadResult = await startUpload([fileToUpload])
 
       if (!uploadResult || uploadResult.length === 0) {
-        throw new Error("Échec du téléversement du fichier GeoJSON");
+        throw new Error('Échec du téléversement du fichier GeoJSON')
       }
 
-      const uploadedFile = uploadResult[0];
-      console.log("Fichier stocké à l'URL :", uploadedFile.url);
+      const uploadedFile = uploadResult[0]
 
-      // 3. Préparation des données pour l'API DB
       let centerLat = 0
       let centerLng = 0
       const features = layer.data.features || []
@@ -598,8 +758,6 @@ export default function GeoMap () {
         }
       }
 
-      // 4. Envoi à votre API (study-area.ts)
-      // Notez que nous envoyons maintenant fileUrl et fileKey en plus
       const response = await fetch('/api/study-areas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -607,10 +765,9 @@ export default function GeoMap () {
           name: saveFormData.name,
           description: saveFormData.description,
           geometryType: layer.geometryType.toUpperCase(),
-          geojson: layer.data, // On garde le JSON brut pour la géométrie PostGIS immédiate
+          geojson: layer.data,
           centerLat,
           centerLng,
-          // Nouveaux champs pour la référence du fichier
           fileUrl: uploadedFile.url,
           fileKey: uploadedFile.key
         })
@@ -623,22 +780,19 @@ export default function GeoMap () {
           `La zone "${saveFormData.name}" a été enregistrée avec succès.`,
           'success'
         )
-        setSaveDialogOpen(false)
+        setStudyAreaId(result.studyArea.id)
       } else {
         throw new Error(result.error || 'Erreur inconnue')
       }
     } catch (e: any) {
       console.error('Erreur :', e)
-      showToast(
-        "Erreur lors de l'enregistrement.",
-        'destructive'
-      )
+      showToast("Erreur lors de l'enregistrement.", 'destructive')
     } finally {
       setIsSaving(false)
     }
   }
-  // --- 6. EXPORTATION ---
 
+  // --- 6. EXPORTATION ---
   const exportShapefile = async (layer: LayerData) => {
     const sanitizeProps = (props: any): any => {
       const res: any = {}
@@ -758,6 +912,7 @@ export default function GeoMap () {
             </AlertDialogDescription>
           </AlertDialogHeader>
 
+          {/* ... code de sélection des candidats existant ... */}
           {importCandidates.length > 0 && !isProcessing && (
             <div
               className='flex items-center gap-4 p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700'
@@ -838,10 +993,15 @@ export default function GeoMap () {
     )
   }
 
-  // --- NOUVEAU : Rendu de la Modale de Sauvegarde ---
   const renderSaveDialog = () => {
     return (
-      <AlertDialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+      <AlertDialog
+        open={saveDialogOpen}
+        onOpenChange={open => {
+          if (!isSaving) setSaveDialogOpen(open)
+          if (!isSaving && !open) setStudyAreaId(null)
+        }}
+      >
         <AlertDialogContent className='sm:max-w-[425px]'>
           <AlertDialogHeader>
             <AlertDialogTitle className='flex items-center gap-2 text-blue-600 dark:text-blue-400'>
@@ -849,8 +1009,8 @@ export default function GeoMap () {
               Sauvegarder la Zone d&apos;Étude
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Définissez les propriétés de cette couche avant de l&apos;enregistrer
-              dans la base de données PostGIS.
+              Définissez les propriétés de cette couche avant de
+              l&apos;enregistrer dans la base de données PostGIS.
             </AlertDialogDescription>
           </AlertDialogHeader>
 
@@ -892,17 +1052,11 @@ export default function GeoMap () {
                 className='col-span-3'
               />
             </div>
-            <div className='bg-slate-50 dark:bg-slate-900 p-3 rounded text-xs text-slate-500 flex items-center gap-2'>
-              <AlertTriangle className='w-4 h-4 text-amber-500' />
-              <span>
-                La géométrie sera automatiquement convertie et indexée.
-              </span>
-            </div>
+            {/* ... reste du formulaire ... */}
           </div>
 
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isSaving}>Annuler</AlertDialogCancel>
-            {/* Utilisation de onClick au lieu de AlertDialogAction pour contrôler la fermeture après succès */}
             <Button
               onClick={executeSaveToDB}
               disabled={isSaving || !saveFormData.name}
@@ -972,7 +1126,6 @@ export default function GeoMap () {
           />
         </div>
         <div className='flex flex-col gap-2 pt-2 border-t border-slate-200 dark:border-slate-700'>
-          {/* BOUTON D'ENREGISTREMENT MODIFIÉ */}
           <Button
             variant='default'
             size='sm'
@@ -1040,6 +1193,59 @@ export default function GeoMap () {
               <ChevronLeft className='w-4 h-4' />
             </Button>
           </h2>
+
+          {/* ZONE DE RECHERCHE */}
+          <div className='relative'>
+            <Input
+                placeholder="Rechercher une zone..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                className="pr-8"
+            />
+            <Button
+                size="sm"
+                variant="ghost"
+                className="absolute right-0 top-0 h-full px-2 text-slate-500 hover:text-blue-600"
+                onClick={handleSearch}
+                disabled={isSearching}
+            >
+                {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+            </Button>
+          </div>
+
+          {/* LISTE DES RÉSULTATS AVEC LOADING INTÉGRÉ */}
+          {searchResults.length > 0 && (
+            <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-md max-h-40 overflow-y-auto shadow-sm">
+                <div className="p-2 text-xs font-semibold text-slate-500 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 sticky top-0">
+                    Résultats ({searchResults.length})
+                </div>
+                {searchResults.map(result => (
+                    <div 
+                        key={result.id}
+                        className="p-2 text-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer border-b border-slate-100 dark:border-slate-800 last:border-0 flex items-center gap-2 group"
+                        onClick={() => loadSearchResult(result)}
+                    >
+                         {/* Gestion de l'icône : Spinner si chargement en cours, sinon MapPin */}
+                         {loadingResults[result.id] ? (
+                            <Loader2 className="w-3 h-3 text-blue-600 animate-spin flex-shrink-0" />
+                         ) : (
+                            <MapPin className="w-3 h-3 text-slate-400 group-hover:text-blue-500 flex-shrink-0" />
+                         )}
+                         
+                         <div className="truncate flex-1">
+                            <div className="font-medium truncate">{result.name}</div>
+                            <div className="text-[10px] text-slate-500 truncate">{result.geometryType}</div>
+                         </div>
+                         
+                         {!loadingResults[result.id] && (
+                            <Plus className="w-3 h-3 text-slate-300 group-hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                         )}
+                    </div>
+                ))}
+            </div>
+          )}
+
           <div className='flex gap-2 cursor-pointer flex-wrap'>
             <div className='relative flex-1'>
               <Input
@@ -1159,6 +1365,7 @@ export default function GeoMap () {
           </Button>
         )}
 
+        {/* TABLE DES ATTRIBUTS */}
         <div
           className={` absolute bottom-0 left-0 w-full bg-white dark:bg-slate-900 shadow-2xl border-t border-slate-200 dark:border-slate-800 transition-all duration-300 ease-in-out z-30 ${
             tableExpanded ? 'h-[90%] md:h-[60%]' : 'h-10'
@@ -1225,12 +1432,17 @@ export default function GeoMap () {
                   </table>
                 </div>
               )}
+              {tableData.length === 0 && (
+                <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                    <Database className="w-8 h-8 mb-2 opacity-20" />
+                    <p>Aucune donnée attributaire disponible.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
       {renderImportModal()}
-      {/* Ajout du rendu du dialogue de sauvegarde */}
       {renderSaveDialog()}
     </div>
   )

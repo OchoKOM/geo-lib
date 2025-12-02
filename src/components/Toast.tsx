@@ -27,8 +27,8 @@ const icons: Record<ToastVariant, React.ElementType> = {
 /**
  * Affiche un message toast individuel.
  */
-export function Toast({ msg, variant, isExiting }: ToastProps) {
-  const IconComponent = icons[variant];
+export function Toast({ msg, variant = "default", isExiting }: ToastProps) {
+  const IconComponent = icons[variant] || InfoIcon;
   const colorClasses = colors[variant];
 
   // Classes pour l'animation d'apparition/disparition
