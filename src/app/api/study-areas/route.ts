@@ -53,26 +53,26 @@ function geojsonToWKT(geojson: GeoJSONGeometry): string {
 export async function POST(request: NextRequest) {
   try {
     // TEMPORARILY BYPASSED FOR TESTING - Check authentication and authorization
-    // const session = await getSession()
-    // if (!session?.user) {
-    //   return NextResponse.json(
-    //     { error: 'Authentication required' },
-    //     { status: 401 }
-    //   )
-    // }
+    const session = await getSession()
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
 
-    // const user = await prisma.user.findUnique({
-    //   where: { id: session.user.id }
-    // })
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id }
+    })
 
-    // if (!user || !['ADMIN', 'LIBRARIAN', 'AUTHOR'].includes(user.role)) {
-    //   return NextResponse.json(
-    //     { error: 'Insufficient permissions' },
-    //     { status: 403 }
-    //   )
-    // }
+    if (!user || !['ADMIN', 'LIBRARIAN', 'AUTHOR'].includes(user.role)) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions' },
+        { status: 403 }
+      )
+    }
 
-    const { name, description, geometryType, geojson, centerLat, centerLng } = await request.json()
+    const { name, description, geometryType, geojson, centerLat, centerLng, fileUrl } = await request.json()
 
     if (!name || !geojson) {
       return NextResponse.json(
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     // Save GeoJSON file
     const geojsonFile = await prisma.file.create({
       data: {
-        url: '', // Will be set by file upload service
+        url: fileUrl || '', // Will be set by file upload service
         name: `${name}.geojson`,
         mimeType: 'application/json',
         size: Buffer.byteLength(JSON.stringify(geojson)),

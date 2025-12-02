@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button'
 import { Cable, HomeIcon } from 'lucide-react'
 import Link from 'next/link'
 
@@ -10,22 +11,20 @@ export default function NotFound () {
           <Cable size={32} />
         </div>
         <h3 className='text-xl font-bold text-slate-800 dark:text-white mb-2'>
-           404 - Page Non Trouvée
+          404 - Page Non Trouvée
         </h3>
         <p className='text-slate-500 dark:text-slate-400 mb-6'>
-          Il semble que la page que vous cherchez ait disparu ou n&apos;ait jamais
-        existé. Explorez les options ci-dessous pour continuer votre chemin.
+          Il semble que la page que vous cherchez ait disparu ou n&apos;ait
+          jamais existé. Explorez les options ci-dessous pour continuer votre
+          chemin.
         </p>
-        <div className='flex gap-3 justify-center'>
-          <Link
-          href='/'
-          className='inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-full shadow-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900 focus:ring-indigo-500 transition duration-300 transform hover:scale-105'
-        >
-          {/* Icône de maison SVG */}
-          <HomeIcon />
-          Retour à l&apos;Accueil
+        <Link href='/' className='flex justify-center'>
+          <Button className='flex gap-2 justify-center'>
+            {/* Icône de maison SVG */}
+            <HomeIcon />
+            Retour à l&apos;Accueil
+          </Button>
         </Link>
-        </div>
       </div>
     </div>
   )

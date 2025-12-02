@@ -89,11 +89,11 @@ const authenticatedLinks: NavLink[] = [
     requires: ['LIBRARIAN', 'ADMIN']
   },
   {
-    href: '/admin/dashboard',
+    href: '/dashboard',
     label: 'Tableau de Bord',
     page: "Admin",
     icon: <LayoutDashboard className='w-4 h-4' />,
-    requires: ['ADMIN']
+    requires: ['ADMIN', "AUTHOR", "LIBRARIAN"]
   }
 ]
 

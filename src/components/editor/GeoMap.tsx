@@ -11,42 +11,16 @@ import shp from 'shpjs'
 import JSZip from 'jszip'
 import shpwrite from '@mapbox/shp-write'
 import {
-  Layers,
-  TableIcon,
-  Download,
-  Eye,
-  EyeOff,
-  Trash2,
-  Settings,
-  Check,
-  AlertTriangle,
-  Database,
-  Loader2,
-  FolderOpen,
-  FileBox,
-  ChevronRight,
-  Maximize2,
-  Minimize2,
-  ChevronLeft,
-  ZoomIn,
-  FileInput,
-  Save,
-  PenLine
+  Layers, TableIcon, Download, Eye, EyeOff, Trash2, Settings, Check, AlertTriangle, Database, Loader2, FolderOpen, FileBox, ChevronRight, Maximize2, Minimize2, ChevronLeft, ZoomIn, FileInput, Save, PenLine
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction // Ajouté pour le bouton de confirmation
+  AlertDialog,  AlertDialogContent,  AlertDialogHeader,  AlertDialogTitle,  AlertDialogDescription,  AlertDialogFooter,  AlertDialogCancel,  AlertDialogAction // Ajouté pour le bouton de confirmation
 } from '@/components/ui/alert-dialog'
 import { useAuth } from '@/components/AuthProvider'
 import { Input } from '../ui/input'
 import { showToast } from '@/hooks/useToast'
+import { useUploadThing } from '@/lib/uploadthing'
 
 // Ajout d'un composant Textarea simple s'il n'existe pas dans vos composants UI
 const Textarea = (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => (
@@ -56,14 +30,7 @@ const Textarea = (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => (
   />
 )
 
-type GeometryType =
-  | 'Point'
-  | 'MultiPoint'
-  | 'LineString'
-  | 'MultiLineString'
-  | 'Polygon'
-  | 'MultiPolygon'
-  | 'GeometryCollection'
+type GeometryType = | 'Point' | 'MultiPoint' | 'LineString' | 'MultiLineString' | 'Polygon' | 'MultiPolygon' | 'GeometryCollection'
 
 interface LayerData {
   id: string
@@ -102,20 +69,20 @@ if (typeof window !== 'undefined') {
 }
 
 const PALETTE = [
-  '#3b82f6',
-  '#ef4444',
-  '#10b981',
-  '#f59e0b',
-  '#8b5cf6',
-  '#ec4899',
-  '#06b6d4',
-  '#84cc16',
-  '#6366f1'
+  '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#6366f1'
 ]
 const getRandomColor = () => PALETTE[Math.floor(Math.random() * PALETTE.length)]
 
 export default function GeoMap () {
   const { role, isAuthenticated } = useAuth()
+    const { startUpload, isUploading } = useUploadThing("geoJsonUploader", {
+    onClientUploadComplete: (res) => {
+      showToast("Fichier GeoJSON téléversé avec succès", "success");
+    },
+    onUploadError: (error: Error) => {
+      showToast(`Erreur d'upload: ${error.message}`, "destructive");
+    },
+  });
   const [isMounted, setIsMounted] = useState(false)
 
   // Refs Leaflet
@@ -126,7 +93,6 @@ export default function GeoMap () {
 
   // UI State
   const [isDarkMode, setIsDarkMode] = useState(false)
-  const [activeTab, setActiveTab] = useState<'layers' | 'attributes'>('layers')
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [tableExpanded, setTableExpanded] = useState(false)
 
@@ -180,7 +146,7 @@ export default function GeoMap () {
       attributionControl: false
     }).setView([-4.4419, 15.2663], 11) // Kinshasa
 
-    L.control.zoom({ position: 'bottomright' }).addTo(map)
+    L.control.zoom({ position: 'topright' }).addTo(map)
 
     if (drawnItemsRef.current) {
       map.addLayer(drawnItemsRef.current)
@@ -190,7 +156,7 @@ export default function GeoMap () {
           polygon: { allowIntersection: false, showArea: true },
           polyline: {},
           rectangle: {},
-          circle: false,
+          circle: {},
           marker: {},
           circlemarker: false
         }
@@ -561,7 +527,6 @@ export default function GeoMap () {
     setTableData(
       features.map((f: any, i: number) => ({ _fid: i, ...f.properties }))
     )
-    setActiveTab('attributes')
   }
 
   // --- 5. NOUVELLE FONCTION DE SAUVEGARDE EN BDD ---
@@ -586,12 +551,11 @@ export default function GeoMap () {
   }
 
   // Étape 2 : Exécuter la sauvegarde (Appelé par le dialogue)
-  const executeSaveToDB = async () => {
+ const executeSaveToDB = async () => {
     if (!selectedLayerId) return
     const layer = layers.find(l => l.id === selectedLayerId)
     if (!layer) return
 
-    // Validation simple
     if (!saveFormData.name.trim()) {
       showToast('Le nom de la zone est requis.', 'warning')
       return
@@ -600,11 +564,31 @@ export default function GeoMap () {
     setIsSaving(true)
 
     try {
+      // 1. Préparation du fichier pour UploadThing
+      // On convertit l'objet JavaScript (layer.data) en chaîne de caractères, puis en Blob/File
+      const geoJsonString = JSON.stringify(layer.data);
+      const blob = new Blob([geoJsonString], { type: "application/json" });
+      
+      // On crée un fichier avec un nom propre et une extension .geojson
+      const fileName = `${saveFormData.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.geojson`;
+      const fileToUpload = new File([blob], fileName, { type: "application/json" });
+
+      // 2. Téléversement vers UploadThing
+      // startUpload attend un tableau de fichiers
+      const uploadResult = await startUpload([fileToUpload]);
+
+      if (!uploadResult || uploadResult.length === 0) {
+        throw new Error("Échec du téléversement du fichier GeoJSON");
+      }
+
+      const uploadedFile = uploadResult[0];
+      console.log("Fichier stocké à l'URL :", uploadedFile.url);
+
+      // 3. Préparation des données pour l'API DB
       let centerLat = 0
       let centerLng = 0
       const features = layer.data.features || []
 
-      // Calcul du centre simple pour l'indexation
       if (features.length > 0) {
         const bounds = L.geoJSON(layer.data).getBounds()
         if (bounds.isValid()) {
@@ -614,16 +598,21 @@ export default function GeoMap () {
         }
       }
 
+      // 4. Envoi à votre API (study-area.ts)
+      // Notez que nous envoyons maintenant fileUrl et fileKey en plus
       const response = await fetch('/api/study-areas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: saveFormData.name, // Utilisation du nom du formulaire
-          description: saveFormData.description, // Utilisation de la desc du formulaire
+          name: saveFormData.name,
+          description: saveFormData.description,
           geometryType: layer.geometryType.toUpperCase(),
-          geojson: layer.data,
+          geojson: layer.data, // On garde le JSON brut pour la géométrie PostGIS immédiate
           centerLat,
-          centerLng
+          centerLng,
+          // Nouveaux champs pour la référence du fichier
+          fileUrl: uploadedFile.url,
+          fileKey: uploadedFile.key
         })
       })
 
@@ -634,21 +623,20 @@ export default function GeoMap () {
           `La zone "${saveFormData.name}" a été enregistrée avec succès.`,
           'success'
         )
-        setSaveDialogOpen(false) // Fermer le dialogue
+        setSaveDialogOpen(false)
       } else {
         throw new Error(result.error || 'Erreur inconnue')
       }
-    } catch (e) {
-      console.error('Erreur DB:', e)
+    } catch (e: any) {
+      console.error('Erreur :', e)
       showToast(
-        "Erreur lors de l'enregistrement en base de données.",
+        "Erreur lors de l'enregistrement.",
         'destructive'
       )
     } finally {
       setIsSaving(false)
     }
   }
-
   // --- 6. EXPORTATION ---
 
   const exportShapefile = async (layer: LayerData) => {
@@ -858,10 +846,10 @@ export default function GeoMap () {
           <AlertDialogHeader>
             <AlertDialogTitle className='flex items-center gap-2 text-blue-600 dark:text-blue-400'>
               <Database className='w-5 h-5' />
-              Sauvegarder la Zone d'Étude
+              Sauvegarder la Zone d&apos;Étude
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Définissez les propriétés de cette couche avant de l'enregistrer
+              Définissez les propriétés de cette couche avant de l&apos;enregistrer
               dans la base de données PostGIS.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1164,7 +1152,7 @@ export default function GeoMap () {
         {!sidebarOpen && (
           <Button
             size='sm'
-            className='absolute top-4 left-4 z-20 shadow-lg'
+            className='absolute md:top-4 max-md:bottom-16 left-4 z-20 shadow-lg'
             onClick={() => setSidebarOpen(true)}
           >
             <Layers className='w-4 h-4 mr-2' /> Ouvrir Couches
