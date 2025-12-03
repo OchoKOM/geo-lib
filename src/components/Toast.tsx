@@ -10,10 +10,10 @@ interface ToastProps {
 
 // Mappage des variantes aux classes CSS
 const colors: Record<ToastVariant, string> = {
-  default: 'bg-slate-800 text-white',
-  success: 'bg-green-600 text-white',
-  destructive: 'bg-red-600 text-white',
-  warning: 'bg-yellow-500 text-black',
+  default: 'bg-slate-100 text-black dark:bg-slate-800 darK:text-white',
+  success: 'bg-green-400 text-green-900',
+  destructive: 'bg-red-400 text-red-900',
+  warning: 'bg-yellow-300 text-orange-900',
 };
 
 // Mappage des variantes aux composants d'icônes Lucide React

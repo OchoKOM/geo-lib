@@ -19,23 +19,22 @@ import {
   Trash2,
   Settings,
   Check,
-  AlertTriangle,
   Database,
   Loader2,
   FolderOpen,
   FileBox,
-  ChevronRight,
   Maximize2,
   Minimize2,
   ChevronLeft,
   ZoomIn,
   FileInput,
   Save,
-  PenLine,
-  Copy,
   Search,
   MapPin,
-  Plus
+  Plus,
+  X,
+  Map as MapIcon,
+  Globe
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -46,7 +45,6 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogCancel,
-  AlertDialogAction
 } from '@/components/ui/alert-dialog'
 import { useAuth } from '@/components/AuthProvider'
 import { Input } from '../ui/input'
@@ -77,7 +75,7 @@ interface LayerData {
   visible: boolean
   color: string
   opacity: number
-  data: any // GeoJSON FeatureCollection
+  data: any
   featureCount: number
   generatedId: boolean
   generatedGeom: boolean
@@ -131,10 +129,10 @@ const PALETTE = [
 
 const getRandomColor = () => PALETTE[Math.floor(Math.random() * PALETTE.length)]
 
-export default function GeoMap () {
+export default function GeoMap() {
   const { role, isAuthenticated } = useAuth()
-  const { startUpload, isUploading } = useUploadThing('geoJsonUploader', {
-    onClientUploadComplete: res => {
+  const { startUpload } = useUploadThing('geoJsonUploader', {
+    onClientUploadComplete: () => {
       showToast('Fichier GeoJSON téléversé avec succès', 'success')
     },
     onUploadError: (error: Error) => {
@@ -143,7 +141,7 @@ export default function GeoMap () {
   })
   const [isMounted, setIsMounted] = useState(false)
 
-  // Refs Leaflet
+  // Refs Leaflet Principale
   const mapRef = useRef<L.Map | null>(null)
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const drawnItemsRef = useRef<L.FeatureGroup | null>(null)
@@ -165,12 +163,20 @@ export default function GeoMap () {
   )
   const [isProcessing, setIsProcessing] = useState(false)
 
-  // --- Search State (Modifié) ---
+  // --- Search State (REFACTORISÉ POUR DIALOGUE + SPATIAL) ---
+  const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
-  // Nouvel état pour gérer le chargement individuel par ID
   const [loadingResults, setLoadingResults] = useState<Record<string, boolean>>({})
+  
+  // Refs pour la Mini Map de recherche
+  const miniMapRef = useRef<L.Map | null>(null)
+  const miniMapContainerRef = useRef<HTMLDivElement>(null)
+  const searchDrawLayerRef = useRef<L.FeatureGroup | null>(null)
+  // Ajout de la ref pour la couche de tuiles de la mini-map
+  const miniMapTileLayerRef = useRef<L.TileLayer | null>(null)
+  const [searchBounds, setSearchBounds] = useState<L.LatLngBounds | null>(null)
 
   // DB Save State
   const [studyAreaId, setStudyAreaId] = useState<string | null>(null)
@@ -204,6 +210,7 @@ export default function GeoMap () {
     return () => observer.disconnect()
   }, [])
 
+  // Initialisation Carte Principale
   useEffect(() => {
     if (!isMounted || !mapContainerRef.current || mapRef.current) return
 
@@ -262,7 +269,7 @@ export default function GeoMap () {
     }
   }, [isMounted])
 
-  // Gestion du fond de carte
+  // Gestion du fond de carte (Principale)
   const tileLayerRef = useRef<L.TileLayer | null>(null)
   useEffect(() => {
     if (!mapRef.current) return
@@ -280,6 +287,102 @@ export default function GeoMap () {
     tileLayerRef.current.bringToBack()
   }, [isDarkMode, isMounted])
 
+  // --- INITIALISATION MINI-MAP DE RECHERCHE ---
+  useEffect(() => {
+    // N'initialiser la mini map que si la dialog est ouverte et le conteneur prêt
+    if (isSearchDialogOpen && miniMapContainerRef.current && !miniMapRef.current) {
+      const miniMap = L.map(miniMapContainerRef.current, {
+        zoomControl: true,
+        attributionControl: false,
+        center: [-4.4419, 15.2663], // Kinshasa par défaut
+        zoom: 10
+      })
+
+      // Fond de carte géré dynamiquement par l'effet suivant (SUPPRESSION de la ligne statique)
+      // L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(miniMap)
+
+      // Groupe pour dessiner la zone de recherche
+      const searchGroup = new L.FeatureGroup()
+      miniMap.addLayer(searchGroup)
+      searchDrawLayerRef.current = searchGroup
+
+      // Contrôles de dessin (Rectangle uniquement pour la recherche simple)
+      const drawControl = new L.Control.Draw({
+        edit: { 
+          featureGroup: searchGroup,
+          remove: true
+        },
+        draw: {
+          polygon: false,
+          polyline: false,
+          circle: false,
+          marker: false,
+          circlemarker: false,
+          rectangle: {
+            shapeOptions: {
+              color: '#3b82f6',
+              weight: 2
+            }
+          }
+        }
+      })
+      miniMap.addControl(drawControl)
+
+      // Événements
+      miniMap.on(L.Draw.Event.CREATED, (e: any) => {
+        // Nettoyer les anciennes zones (une seule zone de recherche à la fois)
+        searchGroup.clearLayers()
+        const layer = e.layer
+        searchGroup.addLayer(layer)
+        setSearchBounds(layer.getBounds())
+      })
+
+      miniMap.on(L.Draw.Event.DELETED, () => {
+        setSearchBounds(null)
+      })
+
+      miniMapRef.current = miniMap
+      
+      // Petit hack pour forcer le redimensionnement correct une fois la modale affichée
+      setTimeout(() => {
+        miniMap.invalidateSize()
+      }, 100)
+    }
+
+    // Cleanup lors de la fermeture de la dialog
+    if (!isSearchDialogOpen && miniMapRef.current) {
+      miniMapRef.current.remove()
+      miniMapRef.current = null
+      searchDrawLayerRef.current = null
+      miniMapTileLayerRef.current = null
+      setSearchBounds(null)
+    }
+  }, [isSearchDialogOpen])
+
+  // --- GESTION DU FOND DE CARTE (MINI MAP) ---
+  useEffect(() => {
+    // Si la mini-map n'est pas initialisée, on ne fait rien
+    if (!miniMapRef.current) return
+
+    // Si une couche existe déjà, on la retire pour éviter les superpositions
+    if (miniMapTileLayerRef.current) {
+      miniMapRef.current.removeLayer(miniMapTileLayerRef.current)
+    }
+
+    const darkUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+    const lightUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+
+    // Création de la nouvelle couche selon le mode
+    miniMapTileLayerRef.current = L.tileLayer(isDarkMode ? darkUrl : lightUrl, {
+      maxZoom: 19,
+      attribution: isDarkMode ? '&copy; CartoDB' : '&copy; OSM'
+    }).addTo(miniMapRef.current)
+
+    // On s'assure que le fond de carte reste en arrière-plan (derrière le dessin)
+    miniMapTileLayerRef.current.bringToBack()
+  }, [isDarkMode, isSearchDialogOpen]) // Se déclenche au changement de thème ou à l'ouverture de la modale
+
+
   const getFileBaseName = (file: File): string | null => {
     // @ts-ignore
     const fullPath = file.webkitRelativePath || file.name
@@ -293,7 +396,6 @@ export default function GeoMap () {
 
   // --- 2. IMPORTATION ---
   const processFiles = async (files: FileList | File[]) => {
-    // ... code existant inchangé pour l'import de fichiers locaux ...
     if (!files || files.length === 0) {
       showToast('Aucun fichier ou dossier sélectionné.', 'warning')
       return
@@ -454,17 +556,30 @@ export default function GeoMap () {
     setImportCandidates([])
   }
 
-  // --- 2bis. GESTION DE LA RECHERCHE (Modifiée) ---
+  // --- 2bis. GESTION DE LA RECHERCHE (Modifiée avec BoundingBox) ---
 
   const handleSearch = async () => {
-    if (!searchQuery.trim()) return
+    if (!searchQuery.trim() && !searchBounds) {
+      showToast('Veuillez entrer un terme ou sélectionner une zone.', 'warning')
+      return
+    }
+
     setIsSearching(true)
     setSearchResults([])
+
     try {
-      const response = await fetch(
-        `/api/study-areas?q=${encodeURIComponent(searchQuery)}`
-      )
+      let url = `/api/study-areas?q=${encodeURIComponent(searchQuery)}`
+      
+      // Ajout des paramètres spatiaux si une boîte est dessinée
+      if (searchBounds) {
+        const sw = searchBounds.getSouthWest()
+        const ne = searchBounds.getNorthEast()
+        url += `&minLat=${sw.lat}&maxLat=${ne.lat}&minLng=${sw.lng}&maxLng=${ne.lng}`
+      }
+
+      const response = await fetch(url)
       const data = await response.json()
+      
       if (data.success) {
         setSearchResults(data.results)
         if (data.results.length === 0) {
@@ -482,68 +597,64 @@ export default function GeoMap () {
   }
 
   const loadSearchResult = async (result: SearchResult) => {
-    // Vérification anti-doublon avant même de commencer
     if (layerInstancesRef.current[result.id]) {
-        showToast(`La zone "${result.name}" est déjà sur la carte`)
-        zoomToLayer(result.id)
-        return
+      showToast(`La zone "${result.name}" est déjà sur la carte`)
+      zoomToLayer(result.id)
+      setIsSearchDialogOpen(false) // Fermer la dialog
+      return
     }
 
-    // 1. Définir l'état de chargement spécifique pour CETTE zone
     setLoadingResults(prev => ({ ...prev, [result.id]: true }))
 
     try {
       let geojsonData = null
 
-      // 2. Fetcher le GeoJSON complet via l'URL
       if (result.geojsonFile?.url) {
         const response = await fetch(result.geojsonFile.url)
         geojsonData = await response.json()
       } else {
         // Fallback minimaliste
         geojsonData = {
-            type: 'FeatureCollection',
-            features: [
-                {
-                    type: 'Feature',
-                    properties: {
-                        name: result.name,
-                        description: result.description,
-                        db_id: result.id
-                    },
-                    geometry: {
-                        type: 'Point',
-                        coordinates: [result.centerLng, result.centerLat]
-                    }
-                }
-            ]
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              properties: {
+                name: result.name,
+                description: result.description,
+                db_id: result.id
+              },
+              geometry: {
+                type: 'Point',
+                coordinates: [result.centerLng, result.centerLat]
+              }
+            }
+          ]
         }
       }
 
-      // 3. Ajouter à la carte
-      // Note: addLayerToMap appellera automatiquement loadAttributes
-      // ce qui remplira la table avec les vraies données du GeoJSON
       if (geojsonData) {
         addLayerToMap({
-            id: result.id,
-            name: result.name,
-            type: 'database',
-            geometryType: result.geometryType,
-            visible: true,
-            color: getRandomColor(),
-            opacity: 1,
-            data: geojsonData,
-            featureCount: geojsonData.features?.length || 1,
-            generatedId: false,
-            generatedGeom: false
+          id: result.id,
+          name: result.name,
+          type: 'database',
+          geometryType: result.geometryType,
+          visible: true,
+          color: getRandomColor(),
+          opacity: 1,
+          data: geojsonData,
+          featureCount: geojsonData.features?.length || 1,
+          generatedId: false,
+          generatedGeom: false
         })
+        
+        // Fermer la dialog après chargement réussi
+        setIsSearchDialogOpen(false)
       }
-
     } catch (error) {
       console.error(error)
       showToast("Impossible de charger la géométrie.", 'destructive')
     } finally {
-      // 4. Désactiver le chargement spécifique
       setLoadingResults(prev => ({ ...prev, [result.id]: false }))
     }
   }
@@ -557,8 +668,6 @@ export default function GeoMap () {
       const bounds = layer.getBounds()
       if (bounds.isValid()) {
         mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 })
-        // Toast optionnel ici, peut être retiré si jugé trop verbeux
-        // showToast(`Zoomé sur : ${layers.find(l => l.id === id)?.name}`)
       }
     } catch (e) {
       console.error(e)
@@ -569,8 +678,8 @@ export default function GeoMap () {
     if (!mapRef.current) return
 
     if (layerInstancesRef.current[layerData.id]) {
-        zoomToLayer(layerData.id)
-        return
+      zoomToLayer(layerData.id)
+      return
     }
 
     const layer = L.geoJSON(layerData.data, {
@@ -596,16 +705,16 @@ export default function GeoMap () {
           L.DomEvent.stopPropagation(e)
           setSelectedLayerId(layerData.id)
           loadAttributes(layerData)
-          
+
           // Popup simplifié
           const props = feature.properties || {}
-          const entries = Object.entries(props).slice(0, 3) // Montrer max 3 propriétés
+          const entries = Object.entries(props).slice(0, 3)
           const propsHtml = entries.map(([k, v]) => `<div><b>${k}:</b> ${v}</div>`).join('')
 
           const popupContent = `
-            <div class="font-bold text-sm text-slate-900 mb-1">${layerData.name}</div>
-            <div class="text-xs text-slate-700">${propsHtml}</div>
-          `
+              <div class="font-bold text-sm text-slate-900 mb-1">${layerData.name}</div>
+              <div class="text-xs text-slate-700">${propsHtml}</div>
+            `
           L.popup({ maxWidth: 300 })
             .setLatLng(e.latlng)
             .setContent(popupContent)
@@ -626,7 +735,7 @@ export default function GeoMap () {
     layerInstancesRef.current[layerData.id] = layer
     setLayers(prev => [...prev, layerData])
     setSelectedLayerId(layerData.id)
-    loadAttributes(layerData) // C'est ici que la table d'attributs est peuplée
+    loadAttributes(layerData)
   }
 
   const updateLayerStyle = (
@@ -725,7 +834,6 @@ export default function GeoMap () {
     }
 
     setIsSaving(true)
-
     try {
       const geoJsonString = JSON.stringify(layer.data)
       const blob = new Blob([geoJsonString], { type: 'application/json' })
@@ -744,7 +852,6 @@ export default function GeoMap () {
       }
 
       const uploadedFile = uploadResult[0]
-
       let centerLat = 0
       let centerLng = 0
       const features = layer.data.features || []
@@ -885,7 +992,6 @@ export default function GeoMap () {
   )
 
   // --- RENDU MODALES ET LISTES ---
-
   const renderImportModal = () => {
     const allSelected =
       importCandidates.length > 0 && importCandidates.every(c => c.selected)
@@ -912,7 +1018,6 @@ export default function GeoMap () {
             </AlertDialogDescription>
           </AlertDialogHeader>
 
-          {/* ... code de sélection des candidats existant ... */}
           {importCandidates.length > 0 && !isProcessing && (
             <div
               className='flex items-center gap-4 p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700'
@@ -993,6 +1098,108 @@ export default function GeoMap () {
     )
   }
 
+  // --- NOUVEAU : DIALOGUE DE RECHERCHE AVANCEE ---
+  const renderSearchDialog = () => {
+    if (!isSearchDialogOpen) return null
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl w-full max-w-3xl flex flex-col max-h-[90vh]">
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
+            <h3 className="font-semibold text-lg flex items-center gap-2">
+              <Search className="w-5 h-5 text-blue-600" />
+              Recherche Géospatiale
+            </h3>
+            <Button variant="ghost" size="sm" onClick={() => setIsSearchDialogOpen(false)}>
+              <X className="w-5 h-5" />
+            </Button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-0 flex flex-col md:flex-row h-[500px]">
+            {/* Colonne de Gauche : Formulaire et Résultats */}
+            <div className="w-full md:w-1/3 p-4 border-r border-slate-200 dark:border-slate-800 flex flex-col gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Mots-clés</label>
+                <div className="relative">
+                  <Input 
+                    placeholder="Nom, description..." 
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                  />
+                  <Search className="absolute right-3 top-2.5 w-4 h-4 text-slate-400" />
+                </div>
+              </div>
+              
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded text-xs text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-900">
+                <p className="flex items-start gap-2">
+                  <MapIcon className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span>Utilisez la carte ci-contre pour dessiner une zone de recherche (carré) et filtrer les résultats géographiquement.</span>
+                </p>
+              </div>
+
+              <Button onClick={handleSearch} disabled={isSearching} className="w-full">
+                {isSearching ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Search className="w-4 h-4 mr-2" />}
+                Rechercher
+              </Button>
+
+              <div className="flex-1 overflow-y-auto border-t border-slate-100 dark:border-slate-800 pt-2">
+                <h4 className="text-xs font-semibold text-slate-500 mb-2 uppercase">Résultats ({searchResults.length})</h4>
+                {searchResults.length === 0 && !isSearching && (
+                  <div className="text-center py-8 text-slate-400 text-sm">
+                    Aucun résultat.
+                  </div>
+                )}
+                <div className="space-y-1">
+                  {searchResults.map(result => (
+                    <div 
+                      key={result.id}
+                      onClick={() => loadSearchResult(result)}
+                      className="p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer flex items-center gap-2 border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all"
+                    >
+                      {loadingResults[result.id] ? (
+                          <Loader2 className="w-4 h-4 text-blue-600 animate-spin flex-shrink-0" />
+                        ) : (
+                          <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                        )}
+                      <div className="min-w-0">
+                        <div className="font-medium text-sm truncate">{result.name}</div>
+                        <div className="text-xs text-slate-500 truncate">{result.geometryType}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Colonne de Droite : Mini Map */}
+            <div className="w-full md:w-2/3 bg-slate-100 dark:bg-slate-950 relative">
+               <div ref={miniMapContainerRef} className="absolute inset-0 z-0" />
+               
+               {/* Overlay d'info pour le dessin */}
+               <div className="absolute top-2 right-2 z-[1000] bg-white dark:bg-slate-900 p-2 rounded shadow-md border border-slate-200 text-xs">
+                  {searchBounds ? (
+                    <div className="flex items-center gap-2 text-green-600 font-medium">
+                      <Check className="w-3 h-3" /> Zone définie
+                      <button onClick={() => {
+                        searchDrawLayerRef.current?.clearLayers()
+                        setSearchBounds(null)
+                      }} className="text-red-500 hover:underline ml-2">Effacer</button>
+                    </div>
+                  ) : (
+                    <div className="text-slate-500">
+                      Dessinez un rectangle pour filtrer
+                    </div>
+                  )}
+               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const renderSaveDialog = () => {
     return (
       <AlertDialog
@@ -1052,7 +1259,6 @@ export default function GeoMap () {
                 className='col-span-3'
               />
             </div>
-            {/* ... reste du formulaire ... */}
           </div>
 
           <AlertDialogFooter>
@@ -1194,57 +1400,14 @@ export default function GeoMap () {
             </Button>
           </h2>
 
-          {/* ZONE DE RECHERCHE */}
-          <div className='relative'>
-            <Input
-                placeholder="Rechercher une zone..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                className="pr-8"
-            />
-            <Button
-                size="sm"
-                variant="ghost"
-                className="absolute right-0 top-0 h-full px-2 text-slate-500 hover:text-blue-600"
-                onClick={handleSearch}
-                disabled={isSearching}
-            >
-                {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-            </Button>
-          </div>
-
-          {/* LISTE DES RÉSULTATS AVEC LOADING INTÉGRÉ */}
-          {searchResults.length > 0 && (
-            <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-md max-h-40 overflow-y-auto shadow-sm">
-                <div className="p-2 text-xs font-semibold text-slate-500 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 sticky top-0">
-                    Résultats ({searchResults.length})
-                </div>
-                {searchResults.map(result => (
-                    <div 
-                        key={result.id}
-                        className="p-2 text-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer border-b border-slate-100 dark:border-slate-800 last:border-0 flex items-center gap-2 group"
-                        onClick={() => loadSearchResult(result)}
-                    >
-                         {/* Gestion de l'icône : Spinner si chargement en cours, sinon MapPin */}
-                         {loadingResults[result.id] ? (
-                            <Loader2 className="w-3 h-3 text-blue-600 animate-spin flex-shrink-0" />
-                         ) : (
-                            <MapPin className="w-3 h-3 text-slate-400 group-hover:text-blue-500 flex-shrink-0" />
-                         )}
-                         
-                         <div className="truncate flex-1">
-                            <div className="font-medium truncate">{result.name}</div>
-                            <div className="text-[10px] text-slate-500 truncate">{result.geometryType}</div>
-                         </div>
-                         
-                         {!loadingResults[result.id] && (
-                            <Plus className="w-3 h-3 text-slate-300 group-hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                         )}
-                    </div>
-                ))}
-            </div>
-          )}
+          {/* NOUVEAU BOUTON DE RECHERCHE QUI OUVRE LA MODALE */}
+          <Button
+            variant="outline"
+            className="w-full justify-start text-slate-600 dark:text-slate-300 border-dashed"
+            onClick={() => setIsSearchDialogOpen(true)}
+          >
+            <Search className="w-4 h-4 mr-2" /> Rechercher dans la BDD...
+          </Button>
 
           <div className='flex gap-2 cursor-pointer flex-wrap'>
             <div className='relative flex-1'>
@@ -1444,6 +1607,7 @@ export default function GeoMap () {
       </div>
       {renderImportModal()}
       {renderSaveDialog()}
+      {renderSearchDialog()}
     </div>
   )
 }
