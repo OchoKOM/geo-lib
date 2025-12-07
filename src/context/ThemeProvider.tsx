@@ -35,11 +35,12 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 // -----------------------------------------------------------------------------
 
 /**
- * Récupère le thème initial depuis le localStorage ou la préférence système.
+ * Récupère le thème initial depuis le localStorage.
  */
 function getInitialTheme(): Theme {
+  // ✅ OK: Retourne 'system' sur le serveur pour éviter la divergence
   if (typeof window === 'undefined') {
-    return 'system' // Thème par défaut côté serveur
+    return 'system' 
   }
 
   // 1. Essayer de récupérer la valeur stockée
@@ -49,9 +50,8 @@ function getInitialTheme(): Theme {
     return storedTheme
   }
 
-  // 2. Si pas de valeur stockée, utiliser la préférence système
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-  return prefersDark ? 'dark' : 'light' // On retourne 'dark' ou 'light' pour l'initialisation de l'UI
+  // 2. Si pas de valeur stockée, on part de 'system'
+  return 'system'
 }
 
 /**
@@ -72,45 +72,52 @@ function applyTheme(theme: 'light' | 'dark') {
 // -----------------------------------------------------------------------------
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  // Le thème stocké, initialisé par getInitialTheme, est initialement un thème effectif ('light' ou 'dark') ou 'system'.
+  // Le thème stocké, initialisé par getInitialTheme.
   const [theme, setThemeState] = useState<Theme>(getInitialTheme)
-  // Le thème effectif (celui réellement appliqué à l'UI, toujours 'light' ou 'dark').
-  const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>(
-    theme === 'dark' || (theme === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-      ? 'dark'
-      : 'light'
-  )
+  
+  // ✅ CORRIGÉ : Initialiser effectiveTheme avec une valeur par défaut simple et sûre.
+  // Le premier useEffect mettra à jour cette valeur avec la bonne préférence utilisateur.
+  const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>('light') 
+
   const isDark = effectiveTheme === 'dark'
 
   /**
    * Effectue la mise à jour réelle du thème (classes CSS et localStorage)
-   * à chaque fois que `theme` (le thème choisi par l'utilisateur) change.
+   * à chaque fois que `theme` change ou après l'hydratation initiale.
    */
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const isSystemDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-      let newEffectiveTheme: 'light' | 'dark'
-
-      // Détermine le thème effectif
-      if (theme === 'system') {
-        newEffectiveTheme = isSystemDark ? 'dark' : 'light'
-      } else {
-        newEffectiveTheme = theme
-      }
-
-      // Applique la classe CSS
-      applyTheme(newEffectiveTheme)
-
-      // Met à jour le localStorage (pour persistance)
-      localStorage.setItem('theme', theme)
-      
-      // Met à jour l'état du thème effectif
-      setEffectiveTheme(newEffectiveTheme)
+    // Si window n'est pas défini (SSR), on ne fait rien.
+    if (typeof window === 'undefined') {
+        return; 
     }
-  }, [theme])
+    
+    // Logique d'exécution unique après le premier rendu côté client pour synchroniser l'UI
+    const isSystemDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    let newEffectiveTheme: 'light' | 'dark'
+
+    // Détermine le thème effectif
+    if (theme === 'system') {
+      newEffectiveTheme = isSystemDark ? 'dark' : 'light'
+    } else {
+      newEffectiveTheme = theme
+    }
+
+    // Applique la classe CSS
+    applyTheme(newEffectiveTheme)
+
+    // Met à jour le localStorage (pour persistance)
+    localStorage.setItem('theme', theme)
+    
+    // Met à jour l'état du thème effectif
+    setEffectiveTheme(newEffectiveTheme)
+    
+  }, [theme]) // Dépend de 'theme' pour réagir aux changements utilisateurs
 
   // Ajoute un écouteur pour le mode 'system'
   useEffect(() => {
+    if (typeof window === 'undefined') {
+        return;
+    }
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
 
     const handler = (e: MediaQueryListEvent) => {
@@ -130,7 +137,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     
     // Nettoyage
     return () => mediaQuery.removeEventListener('change', handler)
-  }, [])
+  }, []) // S'exécute une seule fois au montage
 
 
   /**

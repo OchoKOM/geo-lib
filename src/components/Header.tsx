@@ -1,5 +1,4 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-// Fichier : components/Header.tsx
 'use client'
 
 import * as React from 'react'
@@ -103,18 +102,35 @@ const authenticatedLinks: NavLink[] = [
  * Composant de sélection de thème utilisant DropdownMenuRadioGroup.
  * Permet de choisir entre 'light', 'dark' et 'system'.
  */
+/**
+ * Composant de sélection de thème utilisant DropdownMenuRadioGroup.
+ * Permet de choisir entre 'light', 'dark' et 'system'.
+ */
 const ThemeSelector = () => {
   // Récupération de l'état actuel du thème et de la fonction de modification
   const { theme, setTheme, isDark } = useTheme()
+  
+  // 1. NOUVEL ÉTAT : Utilisé pour savoir si le composant est monté côté client
+  const [mounted, setMounted] = useState(false)
 
-  // Détermine l'icône à afficher dans le bouton trigger en fonction du thème actuel
-  const TriggerIcon = isDark ? Moon : Sun
+  // 2. useEffect : S'exécute uniquement après le premier rendu (hydratation)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // 3. LOGIQUE D'ICÔNE CONDITIONNELLE : 
+  // Déterminer l'icône réelle
+  let TriggerIcon = Sun
+  if (mounted) {
+    TriggerIcon = isDark ? Moon : Sun
+  }
   
   // Fonction de gestion du changement de valeur
   const handleThemeChange = (value: string) => {
-    // Assurez-vous de convertir la valeur en type Theme
     setTheme(value as 'light' | 'dark' | 'system')
   }
+
+ 
 
   return (
     <DropdownMenu>
@@ -126,10 +142,8 @@ const ThemeSelector = () => {
           variant='outline'
           size='icon'
         >
-          {/* Affiche l'icône du thème actuel (sombre ou clair) */}
+          {/* Affiche l'icône déterminée par la logique 'mounted' (la bonne icône) */}
           <TriggerIcon className='w-5 h-5' />
-          {/* Vous pouvez également utiliser Settings pour le trigger, au choix : */}
-          {/* <Settings className='w-5 h-5' /> */}
         </Button>
       </DropdownMenuTrigger>
       
@@ -160,7 +174,6 @@ const ThemeSelector = () => {
     </DropdownMenu>
   )
 }
-
 // -----------------------------------------------------------------------------
 // 2. Composant de Navigation Principal
 // -----------------------------------------------------------------------------

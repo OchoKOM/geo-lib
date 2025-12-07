@@ -1,208 +1,162 @@
-import { PrismaClient, UserRole, GeometryType, FileType } from '@prisma/client';
-// Importation de la librairie de hachage des mots de passe
-import * as argon2 from '@node-rs/argon2'; 
+import { PrismaClient } from '@prisma/client';
 
 // Initialisation du client Prisma
 const prisma = new PrismaClient();
 
 /**
- * Fonction principale pour insérer les données de test.
+ * Insère ou met à jour une faculté et ses départements associés dans la base de données.
+ *
+ * NOTE IMPORTANTE : Les noms de facultés et de départements sont stockés SANS leurs préfixes génériques
+ * ("Faculté de", "Département de") pour plus de concision.
+ *
+ * @param facultyName - Nom concis de la faculté (ex: 'Droit').
+ * @param departments - Tableau des noms de départements concis (ex: 'Droit Public').
+ * @param description - Description de la faculté.
+ * @returns La faculté créée ou mise à jour.
+ */
+async function upsertFacultyWithDepartments(facultyName: string, departments: string[], description: string = '') {
+  // Construction du nom complet pour les logs et la description
+  const fullFacultyName = facultyName.includes(' ') ? `Faculté des ${facultyName}` : `Faculté de ${facultyName}`;
+  console.log(`\nInsertion de la Faculté : ${facultyName} (${fullFacultyName})`);
+
+  // 1. Upsert (mise à jour ou création) de la Faculté
+  const faculty = await prisma.faculty.upsert({
+    where: { name: facultyName }, // Le nom stocké est le nom concis (ex: 'Droit')
+    update: { description },
+    create: {
+      name: facultyName,
+      description: description, // Utilise la description fournie
+    },
+  });
+
+  // 2. Upsert (mise à jour ou création) des Départements associés
+  for (const deptName of departments) {
+    // Le nom stocké est le nom concis (ex: 'Droit Public')
+    await prisma.department.upsert({
+      where: { name: deptName },
+      update: { facultyId: faculty.id },
+      create: {
+        name: deptName,
+        facultyId: faculty.id,
+        // La description est ajustée pour inclure les mots "Département" et "Faculté"
+        description: `Département de ${deptName} au sein de la faculté de(s) ${fullFacultyName}.`,
+      },
+    });
+    console.log(`   - Département inséré/mis à jour : ${deptName}`);
+  }
+
+  return faculty;
+}
+
+/**
+ * Fonction principale pour insérer uniquement les Facultés et Départements.
  */
 async function main() {
-  console.log('Début du processus de seeding...');
+  console.log('Démarrage du seeding de la structure académique...');
 
-  // --- 1. Hachage du mot de passe de base ---
-  const defaultPassword = 'Password123!';
-  const passwordHash = await argon2.hash(defaultPassword);
-  console.log(`Mot de passe par défaut haché pour tous les utilisateurs : ${defaultPassword}`);
+  // --- Insertion des 13 Facultés et leurs Départements ---
+  console.log('\n--- INSERTION DES FACULTÉS ET DÉPARTEMENTS (Noms entièrement concis) ---');
 
-  // --- 2. Création des Utilisateurs (Rôles variés) ---
-  console.log('Création des utilisateurs (ADMIN, AUTHOR, LIBRARIAN, READER)...');
-  
-  const adminUser = await prisma.user.upsert({
-    where: { email: 'admin@geolib.edu' },
-    update: {},
-    create: {
-      email: 'admin@geolib.edu',
-      passwordHash: passwordHash,
-      name: 'Dr. Jean Dupont (Admin)',
-      role: UserRole.ADMIN,
-      bio: 'Administrateur système et gestionnaire de la plateforme GeoLib.',
-    },
-  });
+  // 1. Droit
+  await upsertFacultyWithDepartments('Droit', [
+    'Droit Économique et Social',
+    'Droit Privé et Judiciaire',
+    'Droit Public',
+  ], 'Formation juridique couvrant le droit privé, public et les aspects économiques et sociaux.');
 
-  const authorUser = await prisma.user.upsert({
-    where: { email: 'auteur@geolib.edu' },
-    update: {},
-    create: {
-      email: 'auteur@geolib.edu',
-      passwordHash: passwordHash,
-      name: 'Prof. Marie Curie (Auteur)',
-      role: UserRole.AUTHOR,
-      bio: 'Professeur en hydrologie et auteur de plusieurs études publiées.',
-    },
-  });
+  // 2. Sciences Économiques et de Gestion
+  await upsertFacultyWithDepartments('Sciences Économiques et de Gestion', [
+    'Économie',
+    'Gestion'
+  ], 'Études axées sur la théorie économique, l\'analyse quantitative et la gestion des organisations.');
 
-  const librarianUser = await prisma.user.upsert({
-    where: { email: 'biblio@geolib.edu' },
-    update: {},
-    create: {
-      email: 'biblio@geolib.edu',
-      passwordHash: passwordHash,
-      name: 'Mme. Sophie Moreau (Bibliothécaire)',
-      role: UserRole.LIBRARIAN,
-      bio: 'Responsable du catalogage et des prêts physiques.',
-    },
-  });
-  
-  // Création du profil d'auteur lié à l'utilisateur 'auteur@geolib.edu'
-  const authorProfile = await prisma.authorProfile.upsert({
-    where: { userId: authorUser.id },
-    update: {},
-    create: {
-      userId: authorUser.id,
-      biography: "Professeure Marie Curie est reconnue pour ses travaux pionniers sur l'impact du changement climatique sur les bassins fluviaux africains.",
-    },
-  });
+  // 3. Lettres et Sciences Humaines
+  await upsertFacultyWithDepartments('Lettres et Sciences Humaines', [
+    'Langues et Linguistiques',
+    'Histoire',
+    'Philosophie',
+  ], 'Recherche et enseignement dans les domaines des lettres, des langues, de l\'histoire et de la philosophie.');
 
+  // 4. Médecine
+  await upsertFacultyWithDepartments('Médecine', [
+    "Anatomie Pathologique (Anapath)",
+    "Anesthésie-Réanimation",
+    "Biologie Médicale",
+    "Chirurgie",
+    "Gynécologie et Obstétrique",
+    "Médecine Interne",
+    "Médecine Physique et Réadaptation",
+    "Odonto-stomatologie (transféré à Médecine Dentaire)",
+    "Santé Publique / École de Santé Publique de Kinshasa",
+    "Sciences de Base",
+  ], 'Formation médicale complète, de la médecine générale aux spécialisations cliniques.');
 
-  // --- 3. Création des Départements et Années Académiques ---
-  console.log('Création des départements et années académiques...');
+  // 5. Médecine Vétérinaire
+  await upsertFacultyWithDepartments('Médecine Vétérinaire', [
+    'Clinique Vétérinaire',
+    'Hygiène Alimentaire et de Santé Publique Vétérinaire',
+  ], 'Études des maladies animales, de la santé publique vétérinaire et de l\'élevage.');
 
-  const geoDept = await prisma.department.upsert({
-    where: { name: 'Département de Géographie' },
-    update: {},
-    create: { name: 'Département de Géographie', description: 'Études géospatiales et aménagement du territoire.' },
-  });
+  // 6. Pétrole, Gaz et Énergies Renouvelables
+  await upsertFacultyWithDepartments('Pétrole, Gaz et Énergies Renouvelables', [
+    'Génie Pétrolier',
+    'Énergies Renouvelables',
+  ], 'Spécialisation dans l\'exploitation des hydrocarbures et le développement de sources d\'énergie propre.');
 
-  const miningDept = await prisma.department.upsert({
-    where: { name: 'Mines et Métallurgie' },
-    update: {},
-    create: { name: 'Mines et Métallurgie', description: 'Recherche et exploitation des ressources minérales.' },
-  });
+  // 7. Polytechnique (Génie)
+  await upsertFacultyWithDepartments('Polytechnique (Génie)', [
+    'Génie Civil',
+    'Génie Électrique',
+    'Génie Mécanique',
+  ], 'Formation d\'ingénieurs dans diverses disciplines de l\'ingénierie.');
 
-  const currentYear = await prisma.academicYear.upsert({
-    where: { year: '2024-2025' },
-    update: {},
-    create: {
-      year: '2024-2025',
-      startDate: new Date('2024-09-01'),
-      endDate: new Date('2025-06-30'),
-    },
-  });
-  
-  // --- 4. Création des Fichiers Factices (Simulés) ---
-  console.log('Création des entrées de fichiers factices...');
-  
-  // Fichier GeoJSON pour un Point (Station)
-  const stationFile = await prisma.file.create({
-    data: {
-      url: '/assets/geojson/station_kinkole.json',
-      name: 'Station_Kinkole.geojson',
-      mimeType: 'application/geo+json',
-      size: 1024,
-      type: FileType.GEOJSON_DATA,
-    },
-  });
-  
-  // Fichier GeoJSON pour un Polygone (Bassin Versant)
-  const bassinFile = await prisma.file.create({
-    data: {
-      url: '/assets/geojson/bassin_versant_ndjili.json',
-      name: 'Bassin_Ndjili.geojson',
-      mimeType: 'application/geo+json',
-      size: 51200,
-      type: FileType.GEOJSON_DATA,
-    },
-  });
+  // 8. Psychologie et des Sciences de l'Éducation (FPSE)
+  await upsertFacultyWithDepartments('Psychologie et des Sciences de l\'Éducation (FPSE)', [
+    'Gestion des Entreprises et Organisation du Travail',
+    'Psychologie Clinique',
+    'Sciences de l\'Éducation',
+  ], 'Analyse du comportement humain, de l\'apprentissage et de l\'organisation du travail.');
 
-  // Fichier PDF (Document du Livre)
-  const bookPdfFile = await prisma.file.create({
-    data: {
-      url: '/assets/documents/geologie_kivu.pdf',
-      name: 'Géologie_Kivu_Rapport.pdf',
-      mimeType: 'application/pdf',
-      size: 2048000,
-      type: FileType.DOCUMENT_PDF,
-    },
-  });
+  // 9. Sciences
+  await upsertFacultyWithDepartments('Sciences', [
+    'Biologie',
+    'Chimie',
+    "Environnement",
+    'Géosciences',
+    "Mathématiques et Informatique",
+    'Physique',
+  ], 'Recherche fondamentale et appliquée dans les sciences exactes et naturelles.');
 
-  // --- 5. Création des Zones d'Étude ---
-  console.log('Création des zones d\'étude...');
-  
-  const pointArea = await prisma.studyArea.create({
-    data: {
-      name: 'Station Météo Kinkole',
-      description: 'Point de prélèvement et station météorologique principale.',
-      geometryType: GeometryType.POINT,
-      centerLat: -4.4093, // Coordonnées simulées pour Kinshasa
-      centerLng: 15.3905,
-      geojsonFileId: stationFile.id,
-    },
-  });
+  // 10. Sciences Agronomiques
+  await upsertFacultyWithDepartments('Sciences Agronomiques', [
+    'Production Végétale',
+    'Zootechnie',
+    'Économie Rurale',
+  ], 'Études de l\'agriculture, de la production alimentaire et de la gestion des ressources naturelles.');
 
-  const polyArea = await prisma.studyArea.create({
-    data: {
-      name: 'Bassin Versant de la N\'djili',
-      description: 'Zone d\'étude hydrologique majeure près de Kinshasa.',
-      geometryType: GeometryType.POLYGON,
-      centerLat: -4.38,
-      centerLng: 15.42,
-      geojsonFileId: bassinFile.id,
-    },
-  });
-  
-  // --- 6. Création des Livres et Liens ---
-  console.log('Création des livres et établissement des relations...');
+  // 11. Sciences Pharmaceutiques
+  await upsertFacultyWithDepartments('Sciences Pharmaceutiques', [
+    'Chimie Pharmaceutique',
+    'Pharmacognosie',
+  ], 'Formation des professionnels de la santé spécialisés dans les médicaments et la pharmacie.');
 
-  const book1 = await prisma.book.create({
-    data: {
-      title: 'Monographie Géologique du Kivu',
-      description: 'Analyse détaillée des formations rocheuses et des ressources minérales de la région du Kivu.',
-      location: 'RAYON G-14',
-      authorId: authorProfile.id,
-      departmentId: miningDept.id,
-      academicYearId: currentYear.id,
-      documentFileId: bookPdfFile.id, // Lien vers le PDF
-      
-      // Liaison avec la zone d'étude Polygon
-      studyAreas: {
-        create: [
-          { studyAreaId: polyArea.id },
-          { studyAreaId: pointArea.id }, // Un livre peut couvrir plusieurs zones
-        ],
-      },
-    },
-  });
+  // 12. Sciences Sociales, Administratives et Politiques (FSSAP)
+  await upsertFacultyWithDepartments('Sciences Sociales, Administratives et Politiques (FSSAP)', [
+    "Anthropologie",
+    'Relations Internationales',
+    'Sciences Politiques et Administratives',
+    'Sciences du Travail',
+    'Sociologie',
+  ], 'Analyse des structures sociales, des systèmes politiques et de l\'administration publique.');
 
-  // Livre factice sans zone d'étude pour le catalogue général
-  const book2 = await prisma.book.create({
-    data: {
-      title: 'Introduction aux Systèmes d\'Information Géographique (SIG)',
-      description: 'Manuel fondamental pour la maîtrise des outils SIG, première édition.',
-      location: 'RAYON SIG-01',
-      departmentId: geoDept.id,
-      academicYearId: currentYear.id,
-    },
-  });
+  // 13. Médecine Dentaire (Odonto-stomatologie)
+  await upsertFacultyWithDepartments('Médecine Dentaire (Odonto-stomatologie)', [
+    'Chirurgie Dentaire',
+    'Prothèse Dentaire',
+  ], 'Formation spécialisée dans les soins bucco-dentaires et l\'odontologie.');
 
 
-  // --- 7. Création des Données de Prêt (Exemple) ---
-  console.log('Création d\'un prêt factice...');
-
-  const dueDate = new Date();
-  dueDate.setDate(dueDate.getDate() + 14); // Échéance dans 14 jours
-
-  await prisma.loan.create({
-    data: {
-      userId: adminUser.id, // L'admin emprunte le livre 1
-      bookId: book1.id,
-      dueDate: dueDate,
-      // Le champ `isOverdue` sera calculé ou mis à jour par une tâche
-    },
-  });
-
-  console.log('Processus de seeding terminé avec succès !');
+  console.log('\nSeeding de la structure académique terminé avec succès.');
 }
 
 /**
@@ -210,7 +164,7 @@ async function main() {
  */
 main()
   .catch((e) => {
-    console.error('Erreur lors du seeding :', e);
+    console.error('Erreur lors du seeding de la structure académique :', e);
     process.exit(1);
   })
   .finally(async () => {

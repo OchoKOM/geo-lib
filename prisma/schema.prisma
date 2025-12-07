@@ -102,12 +102,24 @@ model AuthorProfile {
   books       Book[]    
 }
 
-// --- CATALOGUE & DOCUMENTS ---
+// NOUVEAU MODÈLE : Faculté (Faculty)
+model Faculty {
+  id          String       @id @default(cuid())
+  name        String       @unique 
+  description String?
+  departments Department[] // Relation 1:N vers Department
+}
 
+// MODÈLE MIS À JOUR : Département (Department)
 model Department {
   id          String   @id @default(cuid())
   name        String   @unique 
   description String?
+  
+  // Nouvelle clé étrangère pour la relation avec la Faculté
+  facultyId   String?
+  faculty     Faculty? @relation(fields: [facultyId], references: [id])
+  
   books       Book[]
 }
 
