@@ -4,7 +4,7 @@ import { SearchSection } from "@/components/home/SearchSection"
 import { 
   FileText, BookOpen, GraduationCap, Map as MapIcon, 
   Sparkles, List, LayoutGrid, Calendar, MapPin, 
-  Eye, Download, Bookmark, Compass,
+  Eye, Download, Compass,
   Search
 } from 'lucide-react'
 import Link from "next/link"

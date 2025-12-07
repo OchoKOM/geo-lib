@@ -50,6 +50,7 @@ import { useAuth } from '@/components/AuthProvider'
 import { Input } from '../ui/input'
 import { showToast } from '@/hooks/useToast'
 import { useUploadThing } from '@/lib/uploadthing'
+import kyInstance from '@/lib/ky'
 
 const Textarea = (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => (
   <textarea
@@ -577,10 +578,9 @@ export default function GeoMap() {
         url += `&minLat=${sw.lat}&maxLat=${ne.lat}&minLng=${sw.lng}&maxLng=${ne.lng}`
       }
 
-      const response = await fetch(url)
-      const data = await response.json()
+      const data = await kyInstance.get(url).json<{results: any}>();
       
-      if (data.success) {
+      if (data.results) {
         setSearchResults(data.results)
         if (data.results.length === 0) {
           showToast('Aucun résultat trouvé.')
@@ -610,8 +610,8 @@ export default function GeoMap() {
       let geojsonData = null
 
       if (result.geojsonFile?.url) {
-        const response = await fetch(result.geojsonFile.url)
-        geojsonData = await response.json()
+        const response = await kyInstance.get(result.geojsonFile.url).json()
+        geojsonData = response
       } else {
         // Fallback minimaliste
         geojsonData = {
@@ -865,8 +865,7 @@ export default function GeoMap() {
         }
       }
 
-      const response = await fetch('/api/study-areas', {
-        method: 'POST',
+      const response = await kyInstance.post('/api/study-areas', {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: saveFormData.name,

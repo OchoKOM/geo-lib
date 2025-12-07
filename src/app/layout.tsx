@@ -32,13 +32,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="fr" suppressHydrationWarning>
       <body
       >
-        <ToastContainer />
-        <ThemeProvider>
-        {children}
-        </ThemeProvider>
+        <main>
+          <ToastContainer />
+          <ThemeProvider>
+          {children}
+          </ThemeProvider>
+        </main>
+        
       </body>
     </html>
   );

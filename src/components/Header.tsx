@@ -108,7 +108,7 @@ const ThemeSelector = () => {
   const { theme, setTheme, isDark } = useTheme()
 
   // Détermine l'icône à afficher dans le bouton trigger en fonction du thème actuel
-  const TriggerIcon = theme === "system" ? Settings : isDark ? Moon : Sun
+  const TriggerIcon = isDark ? Moon : Sun
   
   // Fonction de gestion du changement de valeur
   const handleThemeChange = (value: string) => {

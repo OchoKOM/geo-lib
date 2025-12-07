@@ -31,7 +31,7 @@ export default async function LoansPage() {
   // Formatage pour le composant client
   const formattedLoans = loans.map(loan => ({
     id: loan.id,
-    bookTitle: loan.book.title,
+    bookTitle: loan.book?.title || "Sans Titre",
     userName: loan.user.name,
     userEmail: loan.user.email,
     loanDate: loan.loanDate.toISOString().split('T')[0],
@@ -42,7 +42,7 @@ export default async function LoansPage() {
       : (loan.isOverdue || new Date() > loan.dueDate) 
         ? 'OVERDUE' 
         : 'ACTIVE',
-    coverImage: loan.book.coverImage?.url
+    coverImage: loan.book?.coverImage?.url
   }))
 
   return (

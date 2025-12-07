@@ -131,6 +131,7 @@ model Book {
   available   Boolean  @default(true) 
   postedAt    DateTime @default(now())
   createdAt   DateTime @default(now())
+  updatedAt   DateTime?
 
   // Clés étrangères
   authorId        String?
@@ -212,8 +213,8 @@ model Loan {
   userId      String
   user        User      @relation(fields: [userId], references: [id])
   
-  bookId      String
-  book        Book      @relation(fields: [bookId], references: [id])
+  bookId      String?
+  book        Book?      @relation(fields: [bookId], references: [id], onDelete: SetNull)
 }
 
 model Subscription {
