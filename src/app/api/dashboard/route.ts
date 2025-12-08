@@ -224,6 +224,8 @@ export async function POST(req: NextRequest) {
                 newEntity = (await prisma.book.create({
                     data: {
                         ...restBookData,
+                        documentFile: undefined, // Éviter d'envoyer un objet vide
+                        description: restBookData.description || '',
                         postedAt: publicationYear, // Conversion Année -> Date
                         // Gestion de la relation explicite via nested write
                         studyAreas: {

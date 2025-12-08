@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-expressions */
 "use client"
 // src/hooks/useToast.ts
 import { useState, useCallback, useEffect } from 'react';

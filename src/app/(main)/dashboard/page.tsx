@@ -314,6 +314,20 @@ export default function DashboardPage () {
     }
   }, [activeTab, fetchData, isAuthLoading, currentUser])
 
+  // Effect to sync uploaded file state with current entity
+  useEffect(() => {
+    if (currentEntity?.type === 'books') {
+      const bk = currentEntity.data as Partial<BookSchema>
+      const id = bk.documentFile ? bk.documentFile.id : null
+      const name = bk.documentFile ? bk.documentFile.name : null
+      setUploadedFileId(id)
+      setUploadedFileName(name)
+    } else {
+      setUploadedFileId(null)
+      setUploadedFileName(null)
+    }
+  }, [currentEntity])
+
   // --- RENDU DES FORMULAIRES ---
   const renderFormContent = () => {
     if (!currentEntity) return null
@@ -509,13 +523,6 @@ export default function DashboardPage () {
 
       case 'books':
         const bk = data as Partial<BookSchema>
-        if(bk.documentFile?.id !== uploadedFileId){
-          const id = bk.documentFile ? bk.documentFile.id : null
-          const name = bk.documentFile ? bk.documentFile.name : null
-          setUploadedFileId(id)
-          setUploadedFileName(name)
-          updateData('documentFileId', id || '')
-        }
         return (
           <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
             <div className='md:col-span-2'>
