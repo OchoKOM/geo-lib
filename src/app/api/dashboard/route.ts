@@ -11,9 +11,11 @@ import {
     EntityType, DashboardBook, DashboardDepartment,
     DashboardFaculty, DashboardStudyArea, DashboardUser,
     UserRole, BookSchema, DepartmentSchema, FacultySchema, UserUpdateSchema,
-    EntityData
+    EntityData,
+    DashBoardAuthorProfile
 } from '@/lib/types';
 import { Session } from 'lucia';
+import { AuthorProfile } from '@prisma/client';
 
 // --- CONFIGURATION DE LA RÉPONSE ET DES RÔLES ---
 
@@ -69,6 +71,8 @@ export async function GET(req: NextRequest) {
                         role: true,
                         isSuspended: true,
                         createdAt: true,
+                        authorProfile: true,
+                        avatarUrl: true,
                     },
                     orderBy: { createdAt: 'desc' }
                 })) as unknown as DashboardUser[];
@@ -159,7 +163,22 @@ export async function POST(req: NextRequest) {
             case 'departments':
                 newEntity = (await prisma.department.create({ data: data as DepartmentSchema })) as DashboardDepartment;
                 return SUCCESS(newEntity, 'Département créé.');
-
+            case 'author_profiles':
+                const { userId, biography, dateOfDeath } = data;
+                if (!userId || !biography) return BAD_REQUEST("UserId et Biographie requis.");
+                
+                newEntity = (await prisma.authorProfile.create({
+                    data: {
+                        userId,
+                        biography,
+                        dateOfDeath: dateOfDeath ? new Date(dateOfDeath) : null
+                    }
+                })) as DashBoardAuthorProfile;
+                
+                // Optionnel: Mettre à jour le rôle de l'utilisateur en AUTHOR s'il est READER
+                await prisma.user.update({ where: { id: userId }, data: { role: UserRole.AUTHOR } });
+                
+                return SUCCESS(newEntity, 'Profil auteur créé.');
             case 'books':
                 const bookData = data as BookSchema;
                 const { studyAreaIds, publicationYear, ...restBookData } = bookData;
@@ -238,11 +257,13 @@ export async function PATCH(req: NextRequest) {
                 return SUCCESS(updatedEntity, 'Zone mise à jour.');
 
             case 'users':
-                // Sécurité: Empêcher de modifier son propre rôle via cette route si nécessaire
                 updatedEntity = (await prisma.user.update({
                     where: { id },
                     data: data as UserUpdateSchema,
-                    select: { id: true, username: true, email: true, role: true, isSuspended: true, createdAt: true },
+                    select: { 
+                        id: true, username: true, email: true, role: true, isSuspended: true, createdAt: true,
+                        authorProfile: { select: { id: true } }
+                    },
                 })) as DashboardUser;
                 return SUCCESS(updatedEntity, 'Utilisateur mis à jour.');
 

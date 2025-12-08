@@ -22,7 +22,9 @@ export type DashboardUser = Prisma.UserGetPayload<{
     email: true;
     role: true;
     isSuspended: true;
+    avatarUrl: true;
     createdAt: true;
+    authorProfile: true;
   };
 }>;
 
@@ -69,6 +71,18 @@ export type DashboardStudyArea = Prisma.StudyAreaGetPayload<{
   };
 }>;
 
+export type DashBoardAuthorProfile = Prisma.AuthorProfileGetPayload<{
+  include: {
+    user: {
+      select: {
+        name: true,
+        username: true,
+        dateOfBirth: true,
+      }
+    }
+  }
+}>
+
 
 /**
  * Type pour un Livre avec ses relations minimales.
@@ -110,12 +124,12 @@ export { UserRole, FileType, BookType };
 /**
  * Union des types d'entités manipulables dans le dashboard.
  */
-export type EntityType = 'users' | 'books' | 'departments' | 'faculties' | 'studyareas';
+export type EntityType = 'users' | 'books' | 'departments' | 'faculties' | 'studyareas' | "author_profiles";
 
 /**
  * Type générique pour les données du dashboard
  */
-export type EntityData = DashboardUser | DashboardBook | DashboardDepartment | DashboardFaculty | DashboardStudyArea;
+export type EntityData = DashboardUser | DashboardBook | DashboardDepartment | DashboardFaculty | DashboardStudyArea | DashBoardAuthorProfile;
 
 /**
  * Structure de réponse générique pour les appels API du dashboard.

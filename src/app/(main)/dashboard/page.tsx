@@ -1,11 +1,10 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, JSX } from 'react'
 import {
     Book, Users, Building2, GraduationCap, Plus, Edit, Trash2, Search, RefreshCw,
     Loader2, Layers, Database, ChevronLeft, Menu,
-    AlertCircle, Ban
+    AlertCircle, Ban, MapPin, UserPlus, ArrowRight
 } from 'lucide-react'
 
 // --- 1. IMPORTS DES COMPOSANTS UI ---
@@ -28,12 +27,14 @@ import {
     FacultySchema, DepartmentSchema, StudyAreaSchema, BookSchema, UserUpdateSchema
 } from '@/lib/types'
 import { Session } from 'lucia'
+import { Textarea } from '@/components/ui/textarea'
+import Link from 'next/link'
 
 // --- 3. TYPES LOCAUX ---
 
 type CurrentEntity = {
-    type: EntityType
-    data: Partial<DashboardBook | DashboardDepartment | DashboardFaculty | DashboardStudyArea | DashboardUser>
+    type: EntityType | 'author_profiles' // Added extended type for author profile creation
+    data: any // Relaxed type to handle author profile
     isEditing: boolean
     id?: string
 }
@@ -48,7 +49,7 @@ const NAV_ITEMS: { type: EntityType; label: string; icon: JSX.Element; role?: Us
     { type: 'books', label: 'Travaux & Livres', icon: <Book className="w-4 h-4" />, role: UserRole.READER },
     { type: 'faculties', label: 'Facultés', icon: <GraduationCap className="w-4 h-4" />, role: UserRole.READER },
     { type: 'departments', label: 'Départements', icon: <Building2 className="w-4 h-4" />, role: UserRole.READER },
-    { type: 'studyareas', label: 'Zones d\'Étude', icon: <Layers className="w-4 h-4" />, role: UserRole.READER },
+    { type: 'studyareas', label: "Zones d'Étude", icon: <Layers className="w-4 h-4" />, role: UserRole.READER },
     { type: 'users', label: 'Utilisateurs', icon: <Users className="w-4 h-4" />, role: UserRole.LIBRARIAN },
 ]
 
@@ -60,8 +61,8 @@ export default function DashboardPage() {
 
     // --- STATE DATA ---
     const [data, setData] = useState<Record<EntityType, EntityData[]>>({
-        books: [], users: [], departments: [], faculties: [], studyareas: [],
-    })
+        books: [], users: [], departments: [], faculties: [], studyareas: [], author_profiles: []
+    });
     const { user } = useAuth()
     const dashboardUser = user as (DashboardUser | null)
     const [currentUser, setCurrentUser] = useState<DashboardUser | null>(dashboardUser)
@@ -132,7 +133,13 @@ export default function DashboardPage() {
         try {
             const response: ApiResponse<EntityData> = await kyInstance(`/api/dashboard`, { method, json: payload }).json()
             if (response.success) {
-                await fetchData(currentEntity.type)
+                // Si on a créé un profil auteur, on rafraichit la liste des users
+                if (currentEntity.type === 'author_profiles') {
+                    await fetchData('users')
+                } else {
+                    await fetchData(currentEntity.type as EntityType)
+                }
+                
                 setIsFormDialogOpen(false)
                 showToast(response.message || "Opération réussie", 'default')
                 if (['faculties', 'departments', 'studyareas'].includes(currentEntity.type)) {
@@ -194,7 +201,7 @@ export default function DashboardPage() {
     const renderFormContent = () => {
         if (!currentEntity) return null
         const { type, data, isEditing } = currentEntity
-        const updateData = (k: string, v: any) => setCurrentEntity(prev => prev ? { ...prev, data: { ...prev.data, [k]: v } } : null)
+        const updateData = (k: string, v: string | number | boolean | string[]) => setCurrentEntity(prev => prev ? { ...prev, data: { ...prev.data, [k]: v } } : null)
 
         switch (type) {
             case 'faculties':
@@ -213,13 +220,69 @@ export default function DashboardPage() {
                 )
             case 'studyareas':
                 const sa = data as Partial<StudyAreaSchema>
+                
+                // Modification demandée : Bloquer la création et rediriger vers la map
+                if (!isEditing) {
+                    return (
+                        <div className="flex flex-col items-center justify-center p-6 text-center space-y-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <div className="bg-white dark:bg-slate-800 p-3 rounded-full shadow-sm">
+                                <MapPin className="w-8 h-8 text-blue-600" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Création Interactive Requise</h3>
+                                <p className="text-sm text-slate-600 dark:text-slate-300 mt-2 max-w-sm">
+                                    La création de zones d&apos;étude nécessite le dessin de géométries complexes. Veuillez utiliser la carte interactive pour définir une nouvelle zone.
+                                </p>
+                            </div>
+                            <Button asChild className="bg-blue-600 hover:bg-blue-700">
+                                <Link href="/map" target="_blank" className="flex items-center gap-2">
+                                    Aller à la carte interactive <ArrowRight className="w-4 h-4"/>
+                                </Link>
+                            </Button>
+                        </div>
+                    )
+                }
+
+                // Si édition, on permet de changer le nom et la description
                 return (
                     <div className="space-y-4">
+                         <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 text-xs rounded border border-yellow-200 dark:border-yellow-800 flex gap-2">
+                            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                            <span>Pour modifier la géométrie de la zone, veuillez utiliser l&apos;outil carte. Ici, vous ne pouvez modifier que les métadonnées.</span>
+                        </div>
                         <Input className="dark:bg-slate-800 dark:border-slate-700 dark:text-white" placeholder="Nom de la Zone" value={sa.name || ''} onChange={e => updateData('name', e.target.value)} />
-                        <Input className="dark:bg-slate-800 dark:border-slate-700 dark:text-white" placeholder="Description" value={sa.description || ''} onChange={e => updateData('description', e.target.value)} />
-                        {/* Note: Geometry creation usually requires a map interface, simplified here */}
+                        <Textarea className="dark:bg-slate-800 dark:border-slate-700 dark:text-white" placeholder="Description" value={sa.description || ''} onChange={e => updateData('description', e.target.value)} />
                     </div>
                 )
+            
+            // Nouveau cas pour la création de profil auteur
+            case 'author_profiles':
+                return (
+                    <div className="space-y-4">
+                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded text-sm text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800">
+                            Création d&apos;un profil auteur pour l&apos;utilisateur sélectionné.
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium dark:text-slate-300">Biographie (Markdown supporté)</label>
+                            <Textarea 
+                                className="min-h-[150px] dark:bg-slate-800 dark:border-slate-700 dark:text-white" 
+                                placeholder="Biographie complète de l'auteur..." 
+                                value={data.biography || ''} 
+                                onChange={e => updateData('biography', e.target.value)} 
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium dark:text-slate-300">Date de décès (Optionnel)</label>
+                            <Input 
+                                type="date"
+                                className="dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                                value={data.dateOfDeath || ''}
+                                onChange={e => updateData('dateOfDeath', e.target.value)}
+                            />
+                        </div>
+                    </div>
+                )
+
             case 'books':
                 const bk = data as Partial<BookSchema>
                 return (
@@ -398,7 +461,7 @@ export default function DashboardPage() {
                 {/* Data Content */}
                 <main className="flex-1 overflow-auto p-4 bg-slate-100 dark:bg-slate-950 relative">
                     {(() => {
-                        const filteredData = (data[activeTab] || []).filter((item: any) =>
+                        const filteredData = (data[activeTab] || []).filter((item) =>
                             JSON.stringify(item).toLowerCase().includes(searchTerm.toLowerCase())
                         )
 
@@ -421,24 +484,27 @@ export default function DashboardPage() {
                                                         {loading ? <Loader2 className="w-6 h-6 animate-spin mx-auto text-blue-600" /> : "Aucune donnée trouvée."}
                                                     </td>
                                                 </tr>
-                                            ) : filteredData.map((item: any) => (
+                                            ) : filteredData.map((item) => {
+                                              console.log(item);
+                                              
+                                              return (
                                                 <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
                                                     {/* Cellule 1 : Identité */}
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                                                    <td className="px-6 py-4 whitespace-nowrap  truncate max-w-3xs">
+                                                        <div className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
                                                             {item.title || item.name || item.username}
                                                         </div>
-                                                        <div className="text-xs text-slate-400 dark:text-slate-500 font-mono truncate max-w-[100px]">
+                                                        <div className="text-xs text-slate-400 dark:text-slate-500 font-mono truncate">
                                                             {item.id}
                                                         </div>
                                                     </td>
 
                                                     {/* Cellule 2 : Détails */}
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300  truncate max-w-3xs">
                                                         {activeTab === 'users' && <Badge variant={item.role === 'ADMIN' ? 'destructive' : 'secondary'}>{item.role}</Badge>}
                                                         {activeTab === 'books' && <span className="flex items-center gap-2"><Badge variant="outline" className="dark:border-slate-600 dark:text-slate-300">{item.type}</Badge> {new Date(item.postedAt).getFullYear()}</span>}
                                                         {activeTab === 'studyareas' && <span className="truncate block max-w-xs text-xs">{item.description}</span>}
-                                                        {activeTab === 'departments' && <span className="text-xs text-slate-500 dark:text-slate-400">Dép. Académique</span>}
+                                                        {activeTab === 'departments' && <span className="text-xs text-slate-500 dark:text-slate-400 truncate">{item.description || ""}</span>}
                                                     </td>
 
                                                     {/* Cellule 3 : Relations */}
@@ -448,7 +514,7 @@ export default function DashboardPage() {
                                                         {item.author && <span className="text-xs">Par: {item.author.user?.username || 'Inconnu'}</span>}
                                                         {item.studyAreas && item.studyAreas.length > 0 && (
                                                             <div className="flex -space-x-1 overflow-hidden mt-1">
-                                                                {item.studyAreas.map((sa: any, i: number) => (
+                                                                {item.studyAreas.map((sa, i: number) => (
                                                                     <div key={i} className="inline-block h-4 w-4 rounded-full bg-blue-400 ring-2 ring-white dark:ring-slate-900" title={sa.studyArea?.name} />
                                                                 ))}
                                                             </div>
@@ -457,7 +523,27 @@ export default function DashboardPage() {
 
                                                     {/* Cellule 4 : Actions */}
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <div className="flex justify-end gap-2 opacity-0 max-md:opacity-100 group-hover:opacity-100 transition-opacity">
+                                                            {/* BOUTON CRÉER PROFIL AUTEUR (NOUVEAU) */}
+                                                            {activeTab === 'users' && isAuthorized(UserRole.LIBRARIAN) && !item.authorProfile && (
+                                                                <Button 
+                                                                    variant="ghost" 
+                                                                    size="icon" 
+                                                                    className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-slate-800"
+                                                                    title="Créer profil auteur"
+                                                                    onClick={() => {
+                                                                        setCurrentEntity({ 
+                                                                            type: 'author_profiles', 
+                                                                            data: { userId: item.id }, 
+                                                                            isEditing: false 
+                                                                        })
+                                                                        setIsFormDialogOpen(true)
+                                                                    }}
+                                                                >
+                                                                    <UserPlus className="w-4 h-4" />
+                                                                </Button>
+                                                            )}
+
                                                             {isAuthorized(UserRole.LIBRARIAN) && (activeTab !== 'users' || isAuthorized(UserRole.ADMIN)) && (
                                                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-slate-800"
                                                                     onClick={() => {
@@ -485,7 +571,7 @@ export default function DashboardPage() {
                                                         </div>
                                                     </td>
                                                 </tr>
-                                            ))}
+                                            )})}
                                         </tbody>
                                     </table>
                                 </div>
@@ -506,7 +592,9 @@ export default function DashboardPage() {
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
                             {currentEntity?.isEditing ? <Edit className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
-                            {currentEntity?.isEditing ? 'Modifier' : 'Ajouter'} {NAV_ITEMS.find(n => n.type === currentEntity?.type)?.label.slice(0, -1)}
+                            {currentEntity?.type === 'author_profiles' ? "Créer un profil auteur" : (
+                                `${currentEntity?.isEditing ? 'Modifier' : 'Ajouter'} ${NAV_ITEMS.find(n => n.type === currentEntity?.type)?.label.slice(0, -1)}`
+                            )}
                         </DialogTitle>
                         <DialogDescription className="dark:text-slate-400">
                             Remplissez les informations ci-dessous pour mettre à jour la base de données.
@@ -519,10 +607,13 @@ export default function DashboardPage() {
 
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsFormDialogOpen(false)} disabled={loading} className="">Annuler</Button>
-                        <Button onClick={handleAction} disabled={loading} className="">
-                            {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                            Enregistrer
-                        </Button>
+                        {/* Masquer le bouton Enregistrer si on est en train de créer une zone d'étude (redirection map) */}
+                        {!(currentEntity?.type === 'studyareas' && !currentEntity.isEditing) && (
+                            <Button onClick={handleAction} disabled={loading} className="">
+                                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                Enregistrer
+                            </Button>
+                        )}
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
