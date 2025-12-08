@@ -18,7 +18,7 @@ import {
  * Utilisée pour communiquer les erreurs ou le succès au composant client.
  */
 type AuthActionState = {
-    fields: { name: string; email: string; };
+    fields: { name: string; email: string; username: string };
     error: string | null;
     success?: boolean;
 };
@@ -43,6 +43,7 @@ export async function registerAction(
     // 1. Récupération des données brutes
     const name = formData.get('name');
     const email = formData.get('email');
+    const username = formData.get('username');
     const password = formData.get('password');
 
     // 2. Validation Zod côté Server Action (Double-vérification sécurisée)
@@ -50,21 +51,23 @@ export async function registerAction(
         name,
         email,
         password,
+        username
     });
 
     if (!validatedFields.success) {
         // Retourne la première erreur de validation trouvée
         const firstError = validatedFields.error.issues[0].message;
-        return { error: firstError, fields: { name: String(name), email: String(email) } };
+        return { error: firstError, fields: { name: String(name), email: String(email), username: String(username) } };
     }
     
-    const { name: validatedName, email: validatedEmail, password: validatedPassword } = validatedFields.data;
+    const { name: validatedName, email: validatedEmail, password: validatedPassword, username: validatedUsername } = validatedFields.data;
 
     // 3. Appel à la logique métier
     const result = await registerUser({
         name: validatedName,
         email: validatedEmail,
-        password: validatedPassword
+        password: validatedPassword,
+        username: validatedUsername
     });
 
     // 4. Gestion de la réponse et des erreurs
@@ -75,7 +78,7 @@ export async function registerAction(
     }
 
     // Si registerUser renvoie une erreur (ex: email déjà utilisé)
-    return { error: result.error, fields: { name: String(name), email: String(email) } };
+    return { error: result.error, fields: { name: String(name), email: String(email), username: String(username) } };
 }
 
 
@@ -99,6 +102,8 @@ export async function loginAction(
     // 1. Récupération des données brutes
     const email = formData.get('email');
     const password = formData.get('password');
+    const username = formData.get('username');
+    
     // NOUVEAU : Récupération de l'URL de retour (souvent masquée dans le formulaire)
     const callbackUrl = formData.get('callbackUrl');
 
@@ -110,7 +115,7 @@ export async function loginAction(
 
     if (!validatedFields.success) {
         const firstError = validatedFields.error.issues[0].message;
-        return { error: `Erreur de validation: ${firstError}`, fields: { name: '', email: String(email) } };
+        return { error: `Erreur de validation: ${firstError}`, fields: { name: '', email: String(email), username: String(username) } };
     }
     
     const { email: validatedEmail, password: validatedPassword } = validatedFields.data;
@@ -143,7 +148,7 @@ export async function loginAction(
     }
 
     // Si loginUser renvoie une erreur (ex: email/mdp invalide)
-    return { error: result.error, fields: { name: '', email: String(email) } };
+    return { error: result.error, fields: { name: '', email: String(email), username: String(username) } };
 }
 
 

@@ -34,10 +34,27 @@ export const LoginSchema = z.object({
  * @description Schéma Zod pour la validation des données du formulaire d'inscription.
  */
 export const RegisterSchema = z.object({
-    name: z.string().min(2, { message: "Le nom doit contenir au moins 2 caractères." }).max(50),
-    email: z.string().email({ message: "L'adresse e-mail n'est pas valide." }).trim().toLowerCase(),
-    password: z.string().min(8, { message: "Le mot de passe doit contenir au moins 8 caractères." }),
+    name: z.string()
+        .min(2, { message: "Le nom doit contenir au moins 2 caractères." })
+        .max(50),
+
+    email: z.string()
+        .email({ message: "L'adresse e-mail n'est pas valide." })
+        .trim()
+        .toLowerCase(),
+
+    password: z.string()
+        .min(8, { message: "Le mot de passe doit contenir au moins 8 caractères." }),
+
+    username: z.string()
+        .regex(
+            /^[a-zA-Z][a-zA-Z0-9-_]{2,19}$/,
+            {
+                message: "Le username doit commencer par une lettre et contenir uniquement lettres, chiffres, - ou _ (3 à 20 caractères)."
+            }
+        )
 });
+
 
 // -----------------------------------------------------------------------------
 // FONCTIONS UTILITAIRES DE SESSION
@@ -107,7 +124,7 @@ export async function registerUser(
         if (!validatedFields.success) {
             return { success: false, error: "Validation des données échouée." };
         }
-        const { email, password, name } = validatedFields.data;
+        const { email, password, name, username } = validatedFields.data;
 
         // 2. Vérification de l'existence de l'utilisateur
         const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -121,8 +138,9 @@ export async function registerUser(
         // 4. Création de l'utilisateur et de la clé (dans une transaction implicite)
         await prisma.user.create({
             data: {
-                name: name,
-                email: email,
+                name,
+                email,
+                username,
                 passwordHash: '', 
                 role: UserRole.READER, 
                 

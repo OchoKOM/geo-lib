@@ -18,6 +18,7 @@ type AuthActionState = {
   fields: {
     name: string
     email: string
+    username: string
   }
 }
 
@@ -25,7 +26,7 @@ type AuthActionState = {
 const initialState: AuthActionState = {
   error: null,
   success: undefined,
-  fields: { name: '', email: '' } // Initialisation des champs vides
+  fields: { name: '', email: '', username: '' } // Initialisation des champs vides
 }
 
 /**
@@ -133,7 +134,7 @@ function RegisterForm() {
   useEffect(() => {
     if (state.success) {
       // Nettoyage des champs après succès (ou redirection immédiate)
-      setFormValues({ name: '', email: '' })
+      setFormValues({ name: '', email: '', username: '' })
       // get from the url the redirect url if any
       const callbackUrl = searchParams.get('back_url') || '/';
       // Optionnel: Afficher un message de succès avant de rediriger
@@ -218,6 +219,27 @@ function RegisterForm() {
               placeholder='Votre nom'
               // Persistance de la valeur
               defaultValue={formValues.name}
+              key={state.success ? 'success-name' : 'error-name'} // Force la réinitialisation après succès
+            />
+          </div>
+
+          {/* Champ Username */}
+          <div>
+            <label
+              htmlFor='username'
+              className='block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1'
+            >
+              Nom d&apos;utilisateur
+            </label>
+            <Input
+              id='username'
+              name='username'
+              type='text'
+              required
+              placeholder="Votre nom d'utilisateur"
+              pattern={"/^[a-zA-Z][a-zA-Z0-9-_]{2,19}$/"}
+              // Persistance de la valeur
+              defaultValue={formValues.username}
               key={state.success ? 'success-name' : 'error-name'} // Force la réinitialisation après succès
             />
           </div>

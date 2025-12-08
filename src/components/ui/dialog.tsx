@@ -39,7 +39,7 @@ function DialogOverlay ({
       data-slot='dialog-overlay'
       className={cn(
         // Rendre l'overlay plus sombre, similaire à la modal de filtre
-        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm',
+        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-9999999 bg-slate-900/60 backdrop-blur-sm',
         className
       )}
       {...props}
@@ -62,7 +62,7 @@ function DialogContent ({
         data-slot='dialog-content'
         className={cn(
           // Style adapté de SearchSection.tsx : bg-white/dark:bg-slate-900, shadow-2xl, rounded-xl
-          'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-xl p-6 shadow-2xl duration-200 sm:max-w-lg',
+          'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-9999999 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-xl p-6 shadow-2xl duration-200 sm:max-w-lg',
           'bg-white dark:bg-slate-900 dark:border dark:border-slate-700', // Couleurs et bordures du style désiré
           className
         )}

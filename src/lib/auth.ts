@@ -34,6 +34,7 @@ type SessionDatabaseAttributes = Pick<PrismaUser,
     | 'id' 
     | 'email' 
     | 'name' 
+    | 'username' 
     | 'role' 
     | 'bio' 
     | 'createdAt'
@@ -64,6 +65,7 @@ export const lucia = new Lucia(adapter, {
             id: attributes.id, // L'ID de l'utilisateur est crucial
             email: attributes.email,
             name: attributes.name,
+            username: attributes.username,
             role: attributes.role,
             bio: attributes.bio,
             createdAt: attributes.createdAt,

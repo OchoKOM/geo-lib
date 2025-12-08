@@ -1,7 +1,10 @@
+// Exemple de code de dashboard incomplet
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { getSession } from '@/lib/auth'
 
 export async function GET() {
+  const {user} = await getSession();
   try {
     const [totalBooks, totalAuthors, totalAreas] = await Promise.all([
       prisma.book.count(),

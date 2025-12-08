@@ -208,7 +208,7 @@ export default function Header () {
 
   return (
     // Utilisez un Fragment ou une Div pour englober le header et le menu
-    <header className='sticky top-0 z-20'>
+    <header className='sticky top-0 z-200'>
       <header className='h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-2 lg:px-4 shadow-sm z-50 shrink-0'>
         {/* 📚 Logo & Titre */}
         <Link className='flex items-center gap-3 dark:text-white' href='/'>
@@ -299,7 +299,7 @@ export default function Header () {
 
       {/* 📱 NOUVEAUTÉ : Menu de Navigation Mobile (s'affiche conditionnellement) */}
       <nav
-        className={`md:hidden absolute top-16 z-50 left-0 right-0 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 shadow-lg transition-all duration-300 ease-in-out ${
+        className={`md:hidden absolute top-16 z-500 left-0 right-0 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 shadow-lg transition-all duration-300 ease-in-out ${
           isMenuOpen
             ? 'max-h-screen opacity-100 py-2 z-50'
             : 'max-h-0 opacity-0 overflow-hidden'
