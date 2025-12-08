@@ -235,7 +235,7 @@ export default function DashboardPage() {
                         </div>
                         <Input className="dark:bg-slate-800 dark:border-slate-700 dark:text-white" type="number" placeholder="Année" value={bk.publicationYear ? new Date(bk.publicationYear).getFullYear() : ''} onChange={e => updateData('publicationYear', Number(e.target.value))} />
                         
-                        <Select value={bk.bookType || ''} onValueChange={v => updateData('bookType', v as BookType)}>
+                        <Select value={bk.type || ''} onValueChange={v => updateData('type', v as BookType)}>
                             <SelectTrigger className="dark:bg-slate-800 dark:border-slate-700 dark:text-white"><SelectValue placeholder="Type de document" /></SelectTrigger>
                             <SelectContent className="dark:bg-slate-800 dark:border-slate-700 dark:text-white">{Object.values(BookType).map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                         </Select>
@@ -465,7 +465,7 @@ export default function DashboardPage() {
                                                                         if (activeTab === 'books') {
                                                                             entityToEdit.studyAreaIds = item.studyAreas?.map((s: any) => s.studyArea.id) || []
                                                                             entityToEdit.publicationYear = new Date(item.postedAt)
-                                                                            entityToEdit.bookType = item.type
+                                                                            entityToEdit.type = item.type
                                                                         }
                                                                         setCurrentEntity({ type: activeTab, data: entityToEdit, isEditing: true, id: item.id })
                                                                         setIsFormDialogOpen(true)
@@ -518,8 +518,8 @@ export default function DashboardPage() {
                     </div>
 
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsFormDialogOpen(false)} disabled={loading} className="dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700">Annuler</Button>
-                        <Button onClick={handleAction} disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white">
+                        <Button variant="outline" onClick={() => setIsFormDialogOpen(false)} disabled={loading} className="">Annuler</Button>
+                        <Button onClick={handleAction} disabled={loading} className="">
                             {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                             Enregistrer
                         </Button>
@@ -537,9 +537,9 @@ export default function DashboardPage() {
                             Êtes-vous sûr de vouloir supprimer cet élément ? Cette action est irréversible.
                         </DialogDescription>
                     </DialogHeader>
-                    <DialogFooter className="gap-2 sm:justify-center">
-                        <Button variant="outline" className="w-full dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300" onClick={() => setIsDeleteDialogOpen(false)}>Annuler</Button>
-                        <Button variant="destructive" className="w-full bg-red-600 hover:bg-red-700" onClick={handleDelete} disabled={loading}>
+                    <DialogFooter className="">
+                        <Button variant="outline" className="" onClick={() => setIsDeleteDialogOpen(false)}>Annuler</Button>
+                        <Button variant="destructive" className="" onClick={handleDelete} disabled={loading}>
                             {loading ? 'Suppression...' : 'Confirmer'}
                         </Button>
                     </DialogFooter>

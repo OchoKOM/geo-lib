@@ -51,6 +51,7 @@ model User {
   passwordHash String // Mot de passe haché (Argon2)
   name         String
   username     String    @unique
+  avatarUrl String @default("")
   bio          String?   @db.Text
   dateOfBirth  DateTime?
   role         UserRole  @default(READER)
