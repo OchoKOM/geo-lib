@@ -249,3 +249,89 @@ export interface GhostAuthorSchema {
     dateOfBirth?: string; // ISO String
     dateOfDeath?: string; // ISO String
 }
+
+// AJOUTER CECI À VOTRE FICHIER types.ts EXISTANT
+
+/**
+ * Type pour un Prêt (Loan) avec relations
+ */
+export type DashboardLoan = Prisma.LoanGetPayload<{
+  include: {
+    user: {
+      select: {
+        id: true;
+        name: true;
+        username: true;
+        email: true;
+      };
+    };
+    book: {
+      select: {
+        id: true;
+        title: true;
+      };
+    };
+  };
+}>;
+
+/**
+ * Type pour un Abonnement (Subscription)
+ */
+export type DashboardSubscription = Prisma.SubscriptionGetPayload<{
+  include: {
+    user: {
+      select: {
+        id: true;
+        name: true;
+        username: true;
+        email: true;
+      };
+    };
+  };
+}>;
+
+/**
+ * Type pour un Paiement (Payment)
+ */
+export type DashboardPayment = Prisma.PaymentGetPayload<{
+  include: {
+    user: {
+      select: {
+        id: true;
+        name: true;
+        username: true;
+      };
+    };
+    loan: {
+        select: {
+            book: {
+                select: {
+                    title: true;
+                }
+            }
+        }
+    }
+  };
+}>;
+
+export type FinanceEntityType = 'loans' | 'subscriptions' | 'payments' | 'profile';
+export type FinanceEntityData = DashboardLoan | DashboardSubscription | DashboardPayment | DashboardUser;
+
+export interface LoanSchema {
+    userId: string;
+    bookId: string;
+    dueDate: Date;
+}
+
+export interface PaymentSchema {
+    userId: string;
+    amount: number;
+    reason: string;
+    loanId?: string;
+}
+
+export interface SubscriptionSchema {
+    userId: string;
+    endDate: Date;
+    isActive: boolean;
+}

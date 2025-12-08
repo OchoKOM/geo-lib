@@ -226,8 +226,7 @@ export async function POST(req: NextRequest) {
                         ...restBookData,
                         documentFile: undefined, // Éviter d'envoyer un objet vide
                         description: restBookData.description || '',
-                        postedAt: publicationYear, // Conversion Année -> Date
-                        // Gestion de la relation explicite via nested write
+                        postedAt: publicationYear,
                         studyAreas: {
                             create: connectStudyAreas.map(c => ({
                                 studyAreaId: c.studyArea.connect.id
