@@ -539,7 +539,7 @@ export const FacultyFilters = ({ faculties }: FacultyFiltersProps) => {
         onValueChange={(id)=>handleFacultyChange(id === "all" ? "" : id)}
         placeholder="Sélectionner une Faculté"
         items={faculties.map(f => ({ value: f.id, label: f.name }))}
-        icon={Landmark}
+        icon={GraduationCap}
       />
 
       {/* Select du Département (désactivé si aucune faculté sélectionnée) */}

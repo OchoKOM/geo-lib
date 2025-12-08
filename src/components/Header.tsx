@@ -34,6 +34,7 @@ import {
 import { usePathname } from 'next/dist/client/components/navigation'
 import { useTheme } from '@/context/ThemeProvider'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu'
+import Logo from './ui/logo'
 
 // -----------------------------------------------------------------------------
 // 1. Définition des Liens de Navigation
@@ -70,13 +71,6 @@ const commonLinks: NavLink[] = [
     icon: <Map className='w-4 h-4' />,
     requires: ['INVITE', 'READER', 'AUTHOR', 'LIBRARIAN', 'ADMIN']
   },
-  {
-    href: '/catalog',
-    label: 'Catalogue',
-    page: "Catalogue",
-    icon: <BookOpen className='w-4 h-4' />,
-    requires: ['READER', 'AUTHOR', 'LIBRARIAN', 'ADMIN']
-  }
 ]
 
 const authenticatedLinks: NavLink[] = [
@@ -213,7 +207,7 @@ export default function Header () {
         {/* 📚 Logo & Titre */}
         <Link className='flex items-center gap-3 dark:text-white' href='/'>
           <div className='bg-blue-600 text-white p-1.5 rounded-lg shadow-sm'>
-            <Globe2 className='w-6 h-6' />
+            <Logo className='w-6 h-6' />
           </div>
           <h1 className='text-xl font-bold tracking-tight'>
             GeoLib{' '}

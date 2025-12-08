@@ -13,12 +13,12 @@ export const metadata: Metadata = {
     // Ceci est la structure recommandée pour l'App Router
     icon: [
       {
-        url: '/favicon.svg',
+        url: '/static/favicon',
         media: '(prefers-color-scheme: light)', 
         // type: 'image/svg+xml',
       },
       {
-        url: '/favicon-dark.svg',
+        url: '/static/favicon?theme=dark',
         media: '(prefers-color-scheme: dark)',
         // type: 'image/svg+xml',
       },

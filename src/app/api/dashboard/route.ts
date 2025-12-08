@@ -12,7 +12,8 @@ import {
     DashboardFaculty, DashboardStudyArea, DashboardUser,
     UserRole, BookSchema, DepartmentSchema, FacultySchema, UserUpdateSchema,
     EntityData,
-    DashBoardAuthorProfile
+    DashBoardAuthorProfile,
+    GhostAuthorSchema
 } from '@/lib/types';
 import { Session } from 'lucia';
 import { AuthorProfile } from '@prisma/client';
@@ -95,7 +96,8 @@ export async function GET(req: NextRequest) {
                         documentFile: true, 
                     },
                     orderBy: { postedAt: 'desc' }
-                })) as unknown as DashboardBook[];
+                })) as DashboardBook[];
+                
                 break;
 
             case 'departments':
@@ -167,14 +169,35 @@ export async function POST(req: NextRequest) {
             case 'departments':
                 newEntity = (await prisma.department.create({ data: data as DepartmentSchema })) as DashboardDepartment;
                 return SUCCESS(newEntity, 'Département créé.');
-            case 'author_profiles':
+             case 'create_ghost_author':
+                const ghostData = data as GhostAuthorSchema;
+                const fakeEmail = `historical.${Date.now()}@library.system`;
+                const ghostUser = await prisma.$transaction(async (tx) => {
+                    const user = await tx.user.create({
+                        data: {
+                            email: fakeEmail,
+                            passwordHash: `SYS_${Date.now()}`, 
+                            username: ghostData.name.replace(/\s+/g, '_').toLowerCase() + '_' + Math.floor(Math.random() * 1000),
+                            name: ghostData.name,
+                            role: UserRole.AUTHOR,
+                            dateOfBirth: ghostData.dateOfBirth ? new Date(ghostData.dateOfBirth) : null,
+                            bio: "Auteur historique / Compte système",
+                        }
+                    });
+                    await tx.authorProfile.create({
+                        data: { userId: user.id, biography: ghostData.biography, dateOfDeath: ghostData.dateOfDeath ? new Date(ghostData.dateOfDeath) : null }
+                    });
+                    return user;
+                });
+                return SUCCESS(ghostUser, `Auteur ${ghostData.name} créé.`);
+           case 'author_profiles':
                 const { userId, biography, dateOfDeath } = data;
-                if (!userId || !biography) return BAD_REQUEST("UserId et Biographie requis.");
+                if (!userId) return BAD_REQUEST("UserId et Biographie requis.");
                 
                 newEntity = (await prisma.authorProfile.create({
                     data: {
                         userId,
-                        biography,
+                        biography: biography || '',
                         dateOfDeath: dateOfDeath ? new Date(dateOfDeath) : null
                     }
                 })) as DashBoardAuthorProfile;
@@ -352,6 +375,8 @@ export async function DELETE(req: NextRequest) {
             case 'departments': await prisma.department.delete({ where: { id } }); break;
             case 'studyareas': await prisma.studyArea.delete({ where: { id } }); break;
             case 'books': await prisma.book.delete({ where: { id } }); break;
+            case 'author_profiles': await prisma.authorProfile.delete({ where: { id } });
+                break;
             case 'users': await prisma.user.delete({ where: { id } }); break;
             default: return BAD_REQUEST('Suppression non supportée.');
         }

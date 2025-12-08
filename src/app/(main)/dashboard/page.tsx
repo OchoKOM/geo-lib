@@ -3,29 +3,7 @@
 
 import { useState, useEffect, useMemo, useCallback, JSX } from 'react'
 import {
-  Book,
-  Users,
-  Building2,
-  GraduationCap,
-  Plus,
-  Edit,
-  Trash2,
-  Search,
-  RefreshCw,
-  Loader2,
-  Layers,
-  Database,
-  ChevronLeft,
-  Menu,
-  AlertCircle,
-  Ban,
-  MapPin,
-  UserPlus,
-  ArrowRight,
-  FileText,
-  CheckCircle2,
-  XCircle,
-  UserCog
+  Book,Users,Building2,GraduationCap,Plus,Edit,Trash2,Search,RefreshCw,Loader2,Layers,Database,ChevronLeft,Menu,AlertCircle,Ban,MapPin,UserPlus,ArrowRight,FileText,CheckCircle2,XCircle,UserCog
 } from 'lucide-react'
 
 // --- 1. IMPORTS DES COMPOSANTS UI ---
@@ -129,7 +107,7 @@ const NAV_ITEMS: {
     role: UserRole.LIBRARIAN
   },
   {
-    type: 'create_ghost_author',
+    type: 'author_profiles',
     label: 'Profil auteur',
     icon: <UserPlus className='w-4 h-4' />,
     role: UserRole.LIBRARIAN
@@ -211,13 +189,14 @@ export default function DashboardPage () {
 
   // --- API CALLS ---
   const fetchData = useCallback(async (entity: EntityType) => {
+    
     setLoading(true)
     try {
       const response: ApiResponse<EntityData[]> = await kyInstance
-        .get(`/api/dashboard?type=${entity}`)
-        .json()
+      .get(`/api/dashboard?type=${entity}`)
+      .json()
       if (response.success) {
-        setData(prev => ({ ...prev, [entity]: response.data }))
+        setData(prev => ({ ...prev, [entity]: response.data }));
         if (entity === 'author_profiles') {
           setAuthorProfiles(
             response.data as unknown as DashBoardAuthorProfile[]
@@ -244,7 +223,6 @@ export default function DashboardPage () {
       // filtrer les champs undefined et null dans data
       data: currentEntity.data
     }
-    
 
     try {
       const response: ApiResponse<EntityData> = await kyInstance(
@@ -252,7 +230,6 @@ export default function DashboardPage () {
         { method, json: payload }
       ).json()
       if (response.success) {
-        // Rafraîchissement des données
         if (
           currentEntity.type === 'author_profiles' ||
           currentEntity.type === 'create_ghost_author'
@@ -532,6 +509,13 @@ export default function DashboardPage () {
 
       case 'books':
         const bk = data as Partial<BookSchema>
+        if(bk.documentFile?.id !== uploadedFileId){
+          const id = bk.documentFile ? bk.documentFile.id : null
+          const name = bk.documentFile ? bk.documentFile.name : null
+          setUploadedFileId(id)
+          setUploadedFileName(name)
+          updateData('documentFileId', id || '')
+        }
         return (
           <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
             <div className='md:col-span-2'>
@@ -592,9 +576,18 @@ export default function DashboardPage () {
                     if (res && res.length > 0) {
                       const file = res[0]
                       // serverData contient ce que nous avons retourné depuis core.ts (l'ID prisma)
-                      setUploadedFileId(file.serverData.fileId)
-                      setUploadedFileName(file.name)
-                      showToast('Fichier uploadé avec succès', 'default')
+                      if(file.serverData.fileId !== uploadedFileId){
+                        setUploadedFileId(file.serverData.fileId)
+                        setUploadedFileName(file.name)
+                        const fileId = file.serverData.fileId
+
+                        // 1. Stocker dans l'entité Book en cours d'édition
+                        updateData('documentFileId', fileId)
+                      }
+                      
+
+                      // 2. Afficher un message de confirmation
+                      showToast('Document téléchargé avec succès!')
                     }
                   }}
                   onUploadError={(error: Error) => {
@@ -626,8 +619,10 @@ export default function DashboardPage () {
                     variant='ghost'
                     className='h-6 w-6 p-0 hover:bg-green-100 dark:hover:bg-green-900'
                     onClick={() => {
-                      setUploadedFileId(null)
-                      setUploadedFileName(null)
+                      if (uploadedFileId) {
+                        setUploadedFileId(null)
+                        setUploadedFileName(null)
+                      }
                     }}
                   >
                     <XCircle className='w-4 h-4 text-green-600 dark:text-green-400' />
@@ -779,7 +774,7 @@ export default function DashboardPage () {
     NAV_ITEMS.find(n => n.type === activeTab)?.label || 'Dashboard'
 
   return (
-    <div className='flex h-screen w-full overflow-hidden bg-slate-100 dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-200'>
+    <div className='flex h-[calc(100vh-64px)] max-h-[calc(100vh-64px)] w-full overflow-y-auto bg-slate-100 dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-200'>
       {/* 1. SIDEBAR */}
       <div
         className={`flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 transition-all duration-300 z-20 shadow-xl ${
@@ -907,7 +902,9 @@ export default function DashboardPage () {
             <Button
               variant='outline'
               size='sm'
-              onClick={() => fetchData(activeTab)}
+              onClick={() => {
+                fetchData(activeTab)
+              }}
               disabled={loading}
               className='dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'
             >
@@ -928,7 +925,7 @@ export default function DashboardPage () {
                     data: {
                       id: '',
                       name: '',
-                      biography: '',
+                      biography: ''
                     },
                     isEditing: false
                   })
@@ -947,7 +944,7 @@ export default function DashboardPage () {
                 onClick={() => {
                   setCurrentEntity({
                     type: activeTab,
-                    data: {},
+                    data: {} as unknown as EntityData,
                     isEditing: false
                   })
                   setIsFormDialogOpen(true)
@@ -968,12 +965,11 @@ export default function DashboardPage () {
                 .toLowerCase()
                 .includes(searchTerm.toLowerCase())
             )
-
             return (
-              <div className='bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm overflow-hidden transition-colors'>
-                <div className='overflow-x-auto'>
-                  <table className='min-w-full divide-y divide-slate-100 dark:divide-slate-800'>
-                    <thead className='bg-slate-50 dark:bg-slate-800/50'>
+              <div className='bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm overflow-hidden transition-colors h-full flex flex-col'>
+                <div className='overflow-x-auto flex-1'>
+                  <table className='relative min-w-full divide-y divide-slate-100 dark:divide-slate-800'>
+                    <thead className='bg-slate-50 dark:bg-slate-800/50 sticky top-0'>
                       <tr>
                         <th className='px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider'>
                           ID / Nom
@@ -989,7 +985,7 @@ export default function DashboardPage () {
                         </th>
                       </tr>
                     </thead>
-                    <tbody className='bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800'>
+                    <tbody className='bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800 max-h-full h-full overflow-y-auto'>
                       {filteredData.length === 0 ? (
                         <tr>
                           <td
@@ -1008,13 +1004,13 @@ export default function DashboardPage () {
                           return (
                             <tr
                               key={item.id}
-                              className='hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group'
+                              className='hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group relative'
                             >
                               {/* Cellule 1 : Identité */}
                               <td className='px-6 py-4 whitespace-nowrap  truncate max-w-3xs'>
                                 <div className='text-sm font-medium text-slate-900 dark:text-slate-100 truncate'>
                                   {/* @ts-expect-error*/}
-                                  {item.title || item.name || item.username}
+                                  {item.title || item.name || item.username || item.user.name || item.user.username}
                                 </div>
                                 <div className='text-xs text-slate-400 dark:text-slate-500 font-mono truncate'>
                                   {item.id}
@@ -1089,7 +1085,8 @@ export default function DashboardPage () {
                                 {item.author && (
                                   <span className='text-xs'>
                                     Par: {/* @ts-expect-error*/}
-                                    {item.author.user?.username || 'Inconnu'}
+                                    {item.author.user?.name || item.author.user?.username ||
+                                      'Inconnu'}
                                   </span>
                                 )}
                                 {/* @ts-expect-error*/}
@@ -1099,16 +1096,18 @@ export default function DashboardPage () {
                                     {item.studyAreas.map((sa, i: number) => (
                                       <div
                                         key={i}
-                                        className='inline-block h-4 w-4 rounded-full bg-blue-400 ring-2 ring-white dark:ring-slate-900'
-                                        title={sa.studyArea?.name}
-                                      />
+                                        className='flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded-md'
+                                      >
+                                        <MapPin className='w-3 h-3' />
+                                        <span className='truncate'>{sa.studyArea?.name}</span>
+                                      </div>
                                     ))}
                                   </div>
                                 )}
                               </td>
 
                               {/* Cellule 4 : Actions */}
-                              <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium'>
+                              <td className='sticky right-0 px-6 py-4 whitespace-nowrap text-right text-sm font-medium'>
                                 <div className='flex justify-end gap-2 opacity-0 max-md:opacity-100 group-hover:opacity-100 transition-opacity'>
                                   {/* BOUTON CRÉER PROFIL AUTEUR (NOUVEAU) */}
                                   {activeTab === 'users' &&
@@ -1118,11 +1117,12 @@ export default function DashboardPage () {
                                       <Button
                                         variant='ghost'
                                         size='icon'
-                                        className='h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-slate-800'
+                                        className='h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-slate-800 max-md:text-green-700 max-md:bg-green-50 dark:max-md:bg-slate-800'
                                         title='Créer profil auteur'
                                         onClick={() => {
                                           setCurrentEntity({
                                             type: 'author_profiles',
+                                            // @ts-expect-error
                                             data: { userId: item.id },
                                             isEditing: false
                                           })
@@ -1139,19 +1139,18 @@ export default function DashboardPage () {
                                       <Button
                                         variant='ghost'
                                         size='icon'
-                                        className='h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-slate-800'
+                                        className='h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-slate-800 max-md:text-blue-700 max-md:bg-blue-50 dark:max-md:bg-slate-800'
                                         onClick={() => {
                                           const entityToEdit = { ...item }
                                           if (activeTab === 'books') {
                                             /* @ts-expect-error*/
-                                            entityToEdit.studyAreaIds =
-                                              item.studyAreas?.map(
-                                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                                (s: any) => s.studyArea.id
+                                            entityToEdit.studyAreaIds = item.studyAreas?.map(
+                                                (s: {
+                                                  studyArea: { id: string }
+                                                }) => s.studyArea.id
                                               ) || []
                                             /* @ts-expect-error*/
-                                            entityToEdit.publicationYear =
-                                              new Date(item.postedAt)
+                                            entityToEdit.publicationYear = new Date(item.postedAt)
                                             /* @ts-expect-error*/
                                             entityToEdit.type = item.type
                                           }
@@ -1171,7 +1170,7 @@ export default function DashboardPage () {
                                     <Button
                                       variant='ghost'
                                       size='icon'
-                                      className='h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-slate-800'
+                                      className='h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-slate-800 max-md:text-red-700 max-md:bg-red-50 dark:max-md:bg-slate-800'
                                       onClick={() => {
                                         setDeleteTarget({
                                           type: activeTab,

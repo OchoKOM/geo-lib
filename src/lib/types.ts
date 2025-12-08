@@ -71,6 +71,18 @@ export type DashboardStudyArea = Prisma.StudyAreaGetPayload<{
   };
 }>;
 
+export type DashboardFile = Prisma.FileGetPayload<{
+  select: {
+    id: true;
+    name: true;
+    mimeType: true;
+    url: true;
+    type: true;
+    size: true;
+    createdAt: true;
+  }
+}>
+
 export type DashBoardAuthorProfile = Prisma.AuthorProfileGetPayload<{
   include: {
     user: {
@@ -92,7 +104,13 @@ export type DashboardBook = Prisma.BookGetPayload<{
     author: {
       select: {
         id: true;
-        username: true;
+        user: {
+          select: {
+            id: true;
+            name: true;
+            username: true;
+          }
+        }
       };
     };
     department: {
@@ -109,6 +127,17 @@ export type DashboardBook = Prisma.BookGetPayload<{
             name: true;
           }
         }
+      }
+    };
+    documentFile: {
+      select: {
+        id: true;
+        name: true;
+        mimeType: true;
+        url: true;
+        type: true;
+        size: true;
+        createdAt: true;
       }
     };
   };
@@ -155,7 +184,14 @@ export type ActionData = {
 // ----------------------------------------------------
 
 // Les schémas de données pour les actions POST/PATCH
-
+export interface FileSchema {
+  id: string;
+    name: string;
+    mimeType: string;
+    url: string;
+    type: FileType;
+    size: number;
+}
 /**
  * Schéma pour la création/modification d'un Département
  */
@@ -195,6 +231,7 @@ export interface BookSchema {
     documentFileId?: string; // ID du fichier uploadé
     academicYearId?: string;
     coverImageId?: string;
+    documentFile?: FileSchema; // Fichier uploadé
 }
 
 /**
