@@ -18,7 +18,7 @@ export function ToastContainer() {
     // Configuration du conteneur répliquant votre CSS d'origine
     <div
       id="toast-container-list"
-      className="fixed top-4 right-4 flex flex-col space-y-2 z-99999999 max-w-sm"
+      className="fixed top-4 right-4 flex flex-col space-y-2 z-999999999 max-w-sm"
     >
       {/* Utilisation de la méthode map pour afficher chaque toast */}
       {toasts.map((toast: ToastMessage & { isExiting?: boolean }) => (

@@ -77,7 +77,11 @@ export async function GET(req: NextRequest) {
                     orderBy: { createdAt: 'desc' }
                 })) as unknown as DashboardUser[];
                 break;
-
+            case 'author_profiles':
+                data = (await prisma.authorProfile.findMany({
+                    include: { user: { select: { name: true, username: true, dateOfBirth: true } } }
+                })) as unknown as DashBoardAuthorProfile[];
+                break;
             case 'books':
                 data = (await prisma.book.findMany({
                     include: {
@@ -183,6 +187,9 @@ export async function POST(req: NextRequest) {
                 const bookData = data as BookSchema;
                 const { studyAreaIds, publicationYear, ...restBookData } = bookData;
 
+                console.log(data);
+                
+
                 // 1. Préparer la connexion many-to-many explicite pour BookStudyArea
                 // NOTE: Votre schema BookStudyArea n'a QUE bookId et studyAreaId. 
                 // Pas de assignedBy ni assignedAt.
@@ -218,6 +225,25 @@ export async function POST(req: NextRequest) {
         console.error(`Erreur POST pour ${type}:`, error);
         return NextResponse.json({ success: false, message: `Erreur création ${type}.` }, { status: 500 });
     }
+}
+
+
+function cleanBookUpdateData(bookData: DashboardBook): BookSchema {
+    const cleanData: BookSchema = {
+        title: bookData.title,
+        description: bookData.description,
+        publicationYear: bookData.postedAt,
+        type: bookData.type,
+        departmentId: bookData.departmentId || "",
+        authorId: bookData.authorId || undefined,
+        studyAreaIds: bookData.studyAreas.map(sa => sa.studyArea.id),
+        documentFileId: bookData.documentFileId || undefined,
+        academicYearId: bookData.academicYearId || undefined,
+        coverImageId: bookData.coverImageId || undefined,
+    };
+
+
+    return cleanData;
 }
 
 // ----------------------------------------------------
@@ -268,56 +294,43 @@ export async function PATCH(req: NextRequest) {
                 return SUCCESS(updatedEntity, 'Utilisateur mis à jour.');
 
             case 'books':
-                const bookUpdate = data as BookSchema;
-                const { studyAreaIds, publicationYear, ...restBookUpdate } = bookUpdate;
-
-                // Transaction implicite via prisma.$transaction si on voulait être puriste, 
-                // mais ici on fait séquentiel pour simplifier la logique des relations.
+                const cleanData = cleanBookUpdateData(data);
                 
-                // 1. Update simple des champs scalaires
+                const { studyAreaIds, publicationYear, authorId, documentFileId, departmentId, academicYearId, coverImageId, ...restBookUpdate } = cleanData;
                 await prisma.book.update({
                     where: { id },
                     data: {
                         ...restBookUpdate,
                         ...(publicationYear ? { postedAt: publicationYear} : {}),
+                        ...(authorId ? { authorId } : {}),
+                        ...(documentFileId ? { documentFileId } : {}),
+                        ...(departmentId ? {departmentId} : {}),
+                        ...(academicYearId ? {academicYearId} : {}),
+                        ...(coverImageId ? {coverImageId} : {}),
+                        postedAt: undefined
                     },
                 });
-
-                // 2. Gestion des relations Many-to-Many (BookStudyArea)
                 if (studyAreaIds) {
-                    // Supprimer les anciennes relations
                     await prisma.bookStudyArea.deleteMany({ where: { bookId: id } });
-                    
-                    // Créer les nouvelles
                     if (studyAreaIds.length > 0) {
-                        await prisma.bookStudyArea.createMany({
-                            data: studyAreaIds.map(sid => ({
-                                bookId: id,
-                                studyAreaId: sid
-                            }))
-                        });
+                        await prisma.bookStudyArea.createMany({ data: studyAreaIds.map(sid => ({ bookId: id, studyAreaId: sid })) });
                     }
                 }
-
-                // 3. Re-fetch complet pour le frontend
                 updatedEntity = (await prisma.book.findUnique({
                     where: { id },
                     include: {
                         department: { select: { id: true, name: true } },
-                        studyAreas: {
-                            include: { studyArea: { select: { id: true, name: true } } }
-                        },
+                        author: { select: { id: true, user: { select: { username: true } } } },
+                        studyAreas: { include: { studyArea: { select: { id: true, name: true } } } },
+                        documentFile: true,
                     }
                 })) as unknown as DashboardBook;
-
                 return SUCCESS(updatedEntity, 'Livre mis à jour.');
-
-            default:
-                return BAD_REQUEST(`Update non supporté pour ${type}.`);
+            default: return BAD_REQUEST(`Update non supporté pour ${type}.`);
         }
     } catch (error) {
         console.error(`Erreur PATCH pour ${type}:`, error);
-        return NextResponse.json({ success: false, message: `Erreur serveur update.` }, { status: 500 });
+        return NextResponse.json({ success: false, message: `Erreur serveur update.` });
     }
 }
 

@@ -7,5 +7,5 @@ export const { useUploadThing, uploadFiles } = generateReactHelpers<OurFileRoute
 
 // Export des composants UI (Nouveau)
 export const UploadButton = generateUploadButton<OurFileRouter>();
-export const UploadDropZone = generateUploadDropzone<OurFileRouter>();
+export const UploadDropzone = generateUploadDropzone<OurFileRouter>();
 export const Uploader = generateUploader<OurFileRouter>();

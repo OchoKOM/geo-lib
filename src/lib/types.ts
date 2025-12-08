@@ -124,12 +124,12 @@ export { UserRole, FileType, BookType };
 /**
  * Union des types d'entités manipulables dans le dashboard.
  */
-export type EntityType = 'users' | 'books' | 'departments' | 'faculties' | 'studyareas' | "author_profiles";
+export type EntityType = 'users' | 'books' | 'departments' | 'faculties' | 'studyareas' | "author_profiles" | "create_ghost_author";
 
 /**
  * Type générique pour les données du dashboard
  */
-export type EntityData = DashboardUser | DashboardBook | DashboardDepartment | DashboardFaculty | DashboardStudyArea | DashBoardAuthorProfile;
+export type EntityData = DashboardUser | DashboardBook | DashboardDepartment | DashboardFaculty | DashboardStudyArea | DashBoardAuthorProfile ;
 
 /**
  * Structure de réponse générique pour les appels API du dashboard.
@@ -190,8 +190,11 @@ export interface BookSchema {
     publicationYear: Date;
     type: BookType;
     departmentId: string;
-    authorId: string;
-    studyAreaIds: string[]; // IDs des domaines
+    authorId?: string; // Lien optionnel vers un auteur
+    studyAreaIds: string[];
+    documentFileId?: string; // ID du fichier uploadé
+    academicYearId?: string;
+    coverImageId?: string;
 }
 
 /**
@@ -200,4 +203,12 @@ export interface BookSchema {
 export interface UserUpdateSchema {
     role: UserRole;
     isSuspended: boolean;
+}
+
+// Schéma pour la création d'auteur "Fantôme" (Décédé/Historique)
+export interface GhostAuthorSchema {
+    name: string;
+    biography: string;
+    dateOfBirth?: string; // ISO String
+    dateOfDeath?: string; // ISO String
 }

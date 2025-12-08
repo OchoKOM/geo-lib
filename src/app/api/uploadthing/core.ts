@@ -13,6 +13,14 @@ const determineFileType = (mimeType: string): FileType => {
   return FileType.DOCUMENT_PDF; // Par défaut pour les docs (PDF, Word, etc.)
 };
 
+function slugifyFilename(name:string) {
+  // remove all special characters except for dots, hyphens, and underscores
+  const cleanedName = name.replace(/[^a-zA-Z0-9.\-_]/g, '-');
+  // replace multiple hyphens with a single hyphen
+  return cleanedName.replace(/-+/g, '-').toLowerCase();
+  
+}
+
 export const ourFileRouter = {
   // 1. Route Image (Couvertures)
   imageUploader: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
@@ -26,8 +34,8 @@ export const ourFileRouter = {
       // Création de l'entrée en DB
       const dbFile = await prisma.file.create({
         data: {
-            url: file.url,
-            name: file.name,
+            url: file.ufsUrl,
+            name: slugifyFilename(file.name),
             mimeType: "image/jpeg", // UploadThing normalise souvent, ajustez si besoin
             size: file.size,
             type: FileType.COVER_IMAGE
@@ -50,14 +58,14 @@ export const ourFileRouter = {
     .onUploadComplete(async ({ metadata, file }) => {
       const dbFile = await prisma.file.create({
         data: {
-            url: file.url,
-            name: file.name,
+            url: file.ufsUrl,
+            name: slugifyFilename(file.name),
             mimeType: "application/geo+json",
             size: file.size,
             type: FileType.GEOJSON_DATA
         }
       });
-      return { uploadedBy: metadata.userId, fileId: dbFile.id, fileName: file.name };
+      return { uploadedBy: metadata.userId, fileId: dbFile.id, fileName: slugifyFilename(file.name) };
     }),
 
   // 3. Route Documents Académiques (PDF, Word, Texte)
@@ -76,13 +84,13 @@ export const ourFileRouter = {
       return { userId: user.id };
     })
     .onUploadComplete(async ({ metadata, file }) => {
-      console.log("Document académique uploadé:", file.name);
+      console.log("Document académique uploadé:", slugifyFilename(file.name));
       
       // Enregistrement automatique dans Prisma
       const dbFile = await prisma.file.create({
           data: {
               url: file.ufsUrl,
-              name: file.name,
+              name: slugifyFilename(file.name),
               mimeType: "application/document", // Vous pouvez affiner si vous recevez le mime exact
               size: file.size,
               type: FileType.DOCUMENT_PDF // On utilise ce type enum générique pour tous les docs texte
@@ -94,7 +102,7 @@ export const ourFileRouter = {
         uploadedBy: metadata.userId, 
         fileId: dbFile.id,
         fileUrl: file.ufsUrl,
-        fileName: file.name
+        fileName: slugifyFilename(file.name)
       };
     }),
 
