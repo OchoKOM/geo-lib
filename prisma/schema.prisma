@@ -22,6 +22,7 @@ enum FileType {
   COVER_IMAGE
   DOCUMENT_PDF
   GEOJSON_DATA
+  AVATAR
 }
 
 // NOUVEAU : Types de documents académiques
@@ -51,7 +52,9 @@ model User {
   passwordHash String // Mot de passe haché (Argon2)
   name         String
   username     String    @unique
-  avatarUrl String @default("")
+  avatarId     String?
+  avatar       File?     @relation("UserAvatar", fields: [avatarId], references: [id])
+  avatarUrl    String?
   bio          String?   @db.Text
   dateOfBirth  DateTime?
   role         UserRole  @default(READER)
@@ -214,6 +217,7 @@ model File {
   bookCovers    Book[]      @relation("BookCover")
   bookDocuments Book[]      @relation("BookDocument")
   studyAreas    StudyArea[]
+  userAvatars   User[]      @relation("UserAvatar") // Relation inverse ajoutée
 }
 
 // --- PRÊTS & FINANCE ---

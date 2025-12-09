@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useActionState } from 'react'
-import { useFormState, useFormStatus } from 'react-dom' // Utilisez useActionState si React 19/Next 15
+import { useFormStatus } from 'react-dom'
 import {
   User,
   Mail,
@@ -10,18 +10,17 @@ import {
   UserCircle,
   BookOpen,
   ShieldCheck,
-  Camera,
-  Loader2
+  Loader2,
+  Camera
 } from 'lucide-react'
-import { Button, buttonVariants } from '@/components/ui/button' // Vos composants existants
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { UploadDropzone } from '@/lib/uploadthing'
 import { showToast } from '@/hooks/useToast'
-import { cn } from '@/lib/utils'
-import { UserRole } from '@prisma/client' // Assurez-vous d'importer l'enum depuis le client prisma généré
+import { UserRole } from '@prisma/client'
 import { updateUserProfile } from './actions'
 import { useAuth } from '@/components/AuthProvider'
+import AvatarUploadDialog from './AvatarUploadDialog' // Import du nouveau composant
 
 function SubmitButton () {
   const { pending } = useFormStatus()
@@ -52,25 +51,28 @@ export default function ProfilePage () {
 
   useEffect(() => {
     if (user?.role === UserRole.AUTHOR) {
-      // Fetch authorProfile separately
-      fetch('/api/authors/profile') // Assuming an API route to fetch author profile
+      fetch('/api/authors/profile')
         .then(res => res.json())
         .then(data => setAuthorProfile(data))
         .catch(err => console.error('Failed to fetch author profile', err))
     }
   }, [user])
 
-  const initialUser = user
+  const initialUser = {...user, avatarId: null}
 
   const [state, formAction] = useActionState(updateUserProfile, {
     message: '',
     success: false
   })
+
+  // Gestion de l'état local pour l'affichage immédiat
   const [avatarUrl, setAvatarUrl] = useState<string | null>(
     initialUser?.avatarUrl || null
   )
+  const [avatarId, setAvatarId] = useState<string | null>(
+     initialUser?.avatarId || null
+  )
 
-  // Gestion des toasts basée sur le retour du Server Action
   useEffect(() => {
     if (state.message) {
       if (state.success) {
@@ -81,7 +83,6 @@ export default function ProfilePage () {
     }
   }, [state])
 
-  // Sécurité basique si pas de user chargé
   if (!initialUser) return <div className='p-8'>Chargement du profil...</div>
 
   return (
@@ -94,11 +95,10 @@ export default function ProfilePage () {
             Mon Profil
           </h1>
           <p className='text-slate-500 dark:text-slate-400 mt-2'>
-            Gérez vos informations personnelles et vos préférences de compte.
+            Gérez vos informations personnelles.
           </p>
         </div>
 
-        {/* Badge de Rôle (Style repris de votre DashboardForm) */}
         <div className='flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700'>
           <ShieldCheck className='w-4 h-4 text-blue-600 dark:text-blue-400' />
           <span className='text-sm font-semibold text-slate-700 dark:text-slate-200'>
@@ -119,65 +119,22 @@ export default function ProfilePage () {
                 <Camera className='w-4 h-4' /> Photo de profil
               </h3>
 
-              <input type='hidden' name='avatarUrl' value={avatarUrl || ''} />
+              {/* Input caché pour envoyer l'ID du fichier au serveur lors du submit global */}
+              <input type='hidden' name='avatarId' value={avatarId || ''} />
 
-              {/* Zone UploadThing (Style repris de votre DashboardForm) */}
-              <div className='relative group'>
-                {avatarUrl ? (
-                  <div className='relative w-32 h-32 mx-auto rounded-full overflow-hidden border-4 border-slate-100 dark:border-slate-700 mb-4'>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={avatarUrl}
-                      alt='Avatar'
-                      className='w-full h-full object-cover'
-                    />
-                    <button
-                      type='button'
-                      onClick={() => setAvatarUrl(null)}
-                      className='absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white text-xs font-medium'
-                    >
-                      Modifier
-                    </button>
-                  </div>
-                ) : (
-                  <div className='mb-4'>
-                    <UploadDropzone
-                      endpoint='imageUploader' // Assurez-vous d'avoir cet endpoint dans votre route uploadthing
-                      onClientUploadComplete={res => {
-                        if (res && res[0]) {
-                          setAvatarUrl(res[0].url)
-                          showToast('Avatar mis à jour!')
-                        }
-                      }}
-                      onUploadError={(error: Error) => {
-                        showToast(`Erreur: ${error.message}`, 'destructive')
-                      }}
-                      appearance={{
-                        container:
-                          'border-2 border-dashed border-blue-200 dark:border-blue-900 bg-slate-50 dark:bg-slate-800 h-32 w-32 mx-auto rounded-full flex flex-col justify-center items-center',
-                        button: cn(
-                          buttonVariants({ variant: 'ghost', size: 'sm' }),
-                          'mt-1'
-                        ),
-                        label: 'text-xs text-slate-400 hidden',
-                        allowedContent: 'hidden'
-                      }}
-                      content={{
-                        button ({ ready }) {
-                          return ready ? (
-                            <Camera className='w-5 h-5 text-slate-400' />
-                          ) : (
-                            '...'
-                          )
-                        }
-                      }}
-                    />
-                  </div>
-                )}
-                <p className='text-xs text-slate-500 dark:text-slate-400'>
-                  JPG, GIF ou PNG. 1 Mo max.
-                </p>
-              </div>
+              {/* Nouveau composant Dialog */}
+              <AvatarUploadDialog 
+                currentAvatarUrl={avatarUrl}
+                onAvatarChange={(newId, newUrl) => {
+                  setAvatarId(newId)
+                  setAvatarUrl(newUrl)
+                }}
+              />
+              
+              <p className='mt-4 text-xs text-slate-500 dark:text-slate-400'>
+                Cliquez sur l&apos;image pour modifier.<br/>
+                JPG, PNG ou WebP. Redimensionné auto.
+              </p>
             </div>
 
             <div className='pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3'>
@@ -195,7 +152,6 @@ export default function ProfilePage () {
 
         {/* COLONNE DROITE : Formulaire Détaillé */}
         <div className='lg:col-span-2 space-y-6'>
-          {/* Carte Informations Générales */}
           <div className='bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4'>
             <h2 className='text-xl font-semibold text-slate-900 dark:text-white mb-4'>
               Informations Personnelles
@@ -212,9 +168,6 @@ export default function ProfilePage () {
                   className='dark:bg-slate-800 dark:border-slate-700 dark:text-white'
                   placeholder='Votre nom'
                 />
-                {state.errors?.name && (
-                  <p className='text-red-500 text-xs'>{state.errors.name}</p>
-                )}
               </div>
 
               <div className='space-y-2'>
@@ -252,7 +205,6 @@ export default function ProfilePage () {
             </div>
           </div>
 
-          {/* Carte Spéciale : Auteur (Conditionnelle) */}
           {initialUser.role === UserRole.AUTHOR && (
             <div className='bg-blue-50 dark:bg-blue-900/10 p-6 rounded-xl border border-blue-100 dark:border-blue-900/50 shadow-sm space-y-4'>
               <div className='flex items-center gap-2 mb-2'>
@@ -261,12 +213,9 @@ export default function ProfilePage () {
                   Profil Auteur Académique
                 </h2>
               </div>
-
               <p className='text-sm text-blue-700 dark:text-blue-300 mb-4'>
-                Ces informations apparaîtront sur vos publications (Thèses,
-                Articles, Livres).
+                Ces informations apparaîtront sur vos publications.
               </p>
-
               <div className='space-y-2'>
                 <label className='text-sm font-medium text-slate-700 dark:text-slate-300'>
                   Biographie Académique Complète
@@ -275,7 +224,7 @@ export default function ProfilePage () {
                   name='authorBiography'
                   defaultValue={authorProfile?.biography || ''}
                   className='dark:bg-slate-800 dark:border-slate-700 dark:text-white min-h-[150px]'
-                  placeholder='Votre parcours académique, domaines de recherche...'
+                  placeholder='Votre parcours académique...'
                 />
               </div>
             </div>

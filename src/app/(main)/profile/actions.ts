@@ -1,20 +1,20 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import prisma from '@/lib/prisma' // Assurez-vous que ce chemin est correct
-import { getSession } from '@/lib/auth' // Basé sur votre route.ts
+import prisma from '@/lib/prisma'
+import { getSession } from '@/lib/auth'
 import { UserRole } from '@prisma/client'
 import { z } from 'zod'
 
-// Schéma de validation aligné avec votre Prisma schema
+// Schéma de validation mis à jour
 const ProfileSchema = z.object({
   name: z.string().min(2, "Le nom doit contenir au moins 2 caractères"),
   bio: z.string().optional(),
   dateOfBirth: z.string().optional().nullable(),
-  avatarUrl: z.string().optional(),
-  // Champs spécifiques aux auteurs
-  authorBiography: z.string().optional(), 
-  dateOfDeath: z.string().optional().nullable() // Juste au cas où, même si c'est une page profil perso
+  // Modification : on attend maintenant un ID de fichier (UUID), plus une URL directe
+  avatarId: z.string().optional().nullable(),
+  authorBiography: z.string().optional(),
+  dateOfDeath: z.string().optional().nullable()
 })
 
 export type ProfileFormState = {
@@ -26,22 +26,21 @@ export type ProfileFormState = {
 }
 
 export async function updateUserProfile(
-  prevState: ProfileFormState, 
+  prevState: ProfileFormState,
   formData: FormData
 ): Promise<ProfileFormState> {
-  // 1. Authentification
   const { user } = await getSession()
-  
+
   if (!user) {
     return { success: false, message: "Non authentifié" }
   }
 
-  // 2. Extraction et Validation des données
+  // Extraction des données
   const rawData = {
     name: formData.get('name') as string,
     bio: formData.get('bio') as string,
     dateOfBirth: formData.get('dateOfBirth') as string,
-    avatarUrl: formData.get('avatarUrl') as string,
+    avatarId: formData.get('avatarId') as string || null, // On récupère l'ID caché
     authorBiography: formData.get('authorBiography') as string,
   }
 
@@ -58,21 +57,23 @@ export async function updateUserProfile(
   const data = validatedFields.data
 
   try {
-    // 3. Mise à jour transactionnelle (User + AuthorProfile si nécessaire)
     await prisma.$transaction(async (tx) => {
-      
-      // Mise à jour de base (User)
+      // Mise à jour User avec la relation avatar
       await tx.user.update({
         where: { id: user.id },
         data: {
           name: data.name,
           bio: data.bio,
-          avatarUrl: data.avatarUrl,
+          // Connexion de la relation File si un avatarId est fourni
+          // Si avatarId est null, on ne déconnecte pas forcément, ou on peut utiliser disconnect
+          avatar: data.avatarId
+            ? { connect: { id: data.avatarId } }
+            : undefined,
+          avatarUrl: data.avatarId ? await tx.file.findUnique({ where: { id: data.avatarId } }).then(f => f?.url) : null,
           dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
         }
       })
 
-      // Si l'utilisateur est un AUTEUR, on met à jour son profil auteur étendu
       if (user.role === UserRole.AUTHOR) {
         await tx.authorProfile.upsert({
           where: { userId: user.id },

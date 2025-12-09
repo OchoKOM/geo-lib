@@ -71,7 +71,7 @@ export const lucia = new Lucia(adapter, {
             role: attributes.role,
             bio: attributes.bio,
             createdAt: attributes.createdAt,
-            avatarUrl: attributes.avatarUrl, // Ajout de l'avatar si nécessaire
+            avatarUrl: attributes.avatarUrl,
             dateOfBirth: attributes.dateOfBirth,
         };
     },
