@@ -40,15 +40,26 @@ export const ourFileRouter = {
       return { userId: user.id };
     })
     .onUploadComplete(async ({ metadata, file }) => {
+      const uniqueName = crypto.randomUUID(); // Generate unique name using UUID
       const dbFile = await prisma.file.create({
         data: {
           url: file.ufsUrl, // Utilisation de ufsUrl (UploadThing URL)
-          name: `avatar-${slugifyFilename(file.name)}`,
+          name: uniqueName,
           mimeType: "image/webp", // On suppose que le crop client envoie du webp ou jpeg
           size: file.size,
           type: FileType.AVATAR // Type spécifique
         }
       });
+
+      // Update the user table with the new avatar
+      await prisma.user.update({
+        where: { id: metadata.userId },
+        data: {
+          avatarId: dbFile.id,
+          avatarUrl: file.ufsUrl
+        }
+      });
+
       return { uploadedBy: metadata.userId, fileId: dbFile.id, fileUrl: file.ufsUrl };
     }),
 

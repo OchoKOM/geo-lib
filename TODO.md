@@ -1,7 +1,7 @@
-# TODO: Implement Editable Attribute Tables and Multi-Geometry Drawing
+# TODO: Update Database and Generate Unique Names for Avatar Files
 
 ## Tasks
-- [x] Modify loadAttributes to add mandatory 'id' and 'geom' fields if missing, ensure unique IDs, set 'geom' to layer geometry type
-- [x] Make attributes table editable with inline inputs, handle changes and update layer data
-- [ ] Extend drawing functionality to support multi-point, multi-line, and multi-polygon by accumulating geometries
-- [ ] Test editing attributes and drawing multi-geometries
+- [x] Update avatarUploader in src/app/api/uploadthing/core.ts to generate unique file names using UUID
+- [x] Update user table after avatar upload in avatarUploader
+- [x] Verify database updates in actions.ts are correct (already seems handled)
+- [ ] Test the changes to ensure uniqueness and proper database linking

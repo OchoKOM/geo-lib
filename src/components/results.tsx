@@ -164,7 +164,7 @@ export const Sidebar = ({ stats }: SidebarProps) => (
         </Link>
 
         <Link
-          href='/map'
+          href='/maps'
           className='group flex items-center justify-between p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-cyan-400 dark:hover:border-cyan-500 cursor-pointer transition-all shadow-sm'
         >
           <div className='flex items-center gap-3'>
@@ -172,7 +172,7 @@ export const Sidebar = ({ stats }: SidebarProps) => (
               <MapIcon className='w-4 h-4' />
             </div>
             <span className='font-medium text-slate-700 dark:text-slate-200'>
-              Cartes & Atlas
+              Zones d&apos;Étude
             </span>
           </div>
           <span className='text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 px-2 py-1 rounded'>

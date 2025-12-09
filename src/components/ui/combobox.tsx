@@ -17,13 +17,14 @@ interface ComboboxOption {
 
 interface ComboboxProps extends React.ComponentProps<typeof Popover> {
   onValueChange?: (value: string) => void
-  value?: string
+  value?: string // Pour un composant contrôlé
+  defaultValue?: string // Pour la valeur initiale non contrôlée (AJOUTÉ)
+  name?: string // AJOUTÉ: Pour la soumission du formulaire
   placeholder?: string
   selectPlaceholder?: string
   disabled?: boolean
   className?: string
   children: React.ReactNode // Nécessaire pour le pattern de composant composé
-  // La prop 'options' est retirée ici comme demandé.
 }
 
 interface ComboboxTriggerProps extends React.ComponentProps<typeof Button> {
@@ -46,6 +47,8 @@ interface ComboboxItemProps extends React.ComponentProps<typeof CommandItem> {
 // 1. Composant Racine
 function Combobox ({
   value: controlledValue,
+  defaultValue, // AJOUTÉ
+  name, // AJOUTÉ
   onValueChange,
   placeholder = 'Rechercher...',
   selectPlaceholder = 'Sélectionner une option...',
@@ -55,7 +58,11 @@ function Combobox ({
   ...props
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
-  const [localValue, setLocalValue] = React.useState(controlledValue || '')
+  
+  // MODIFIÉ: Initialisation avec defaultValue ou controlledValue, sinon chaîne vide.
+  const initialValue = controlledValue !== undefined ? controlledValue : (defaultValue || '')
+
+  const [localValue, setLocalValue] = React.useState(initialValue)
   
   // Extraction des options à partir des enfants (ComboboxItem)
   const options = React.useMemo(() => {
@@ -94,7 +101,8 @@ function Combobox ({
   // Garder le state local synchronisé avec la prop contrôlée
   React.useEffect(() => {
     if (controlledValue !== undefined) {
-      setLocalValue(controlledValue)
+      // S'assurer que la valeur est toujours une chaîne (y compris la chaîne vide)
+      setLocalValue(controlledValue || '')
     }
   }, [controlledValue])
 
@@ -112,6 +120,9 @@ function Combobox ({
   
   return (
     <ComboboxContext.Provider value={contextValue}>
+      {/* AJOUTÉ: Champ caché pour la soumission du formulaire */}
+      {name && <input type='hidden' name={name} value={localValue} />}
+      
       <Popover open={open} onOpenChange={setOpen} {...props}>
         {children}
       </Popover>
@@ -223,7 +234,8 @@ function ComboboxItem ({ className, value, label, children, ...props }: Combobox
   const searchLabel = label || value 
 
   const handleSelect = React.useCallback(() => {
-    // Si la valeur est déjà sélectionnée, on la désélectionne (toggle), sinon on sélectionne la nouvelle valeur.
+    // Si la valeur est déjà sélectionnée, on la désélectionne (toggle) en utilisant une chaîne vide (''), 
+    // sinon on sélectionne la nouvelle valeur. Cela gère la désélection et permet la valeur vide.
     const newValue = localValue === value ? '' : value
     setLocalValue(newValue)
     if (onValueChange) {

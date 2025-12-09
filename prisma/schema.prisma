@@ -191,6 +191,7 @@ model StudyArea {
   geojsonFile   File   @relation(fields: [geojsonFileId], references: [id])
 
   books BookStudyArea[]
+  createdAt DateTime @default(now())
 }
 
 model BookStudyArea {
