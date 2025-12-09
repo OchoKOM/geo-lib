@@ -30,14 +30,16 @@ if (process.env.NODE_ENV !== 'production') global.prisma = prisma;
  * que nous voulons exposer dans l'objet de session de Lucia. 
  * Utilise 'Pick' pour inclure uniquement les champs nécessaires de PrismaUser.
  */
-type SessionDatabaseAttributes = Pick<PrismaUser, 
-    | 'id' 
-    | 'email' 
-    | 'name' 
-    | 'username' 
-    | 'role' 
-    | 'bio' 
+type SessionDatabaseAttributes = Pick<PrismaUser,
+    | 'id'
+    | 'email'
+    | 'name'
+    | 'username'
+    | 'role'
+    | 'bio'
     | 'createdAt'
+    | 'avatarUrl'
+    | 'dateOfBirth'
 >;
 
 
@@ -69,6 +71,8 @@ export const lucia = new Lucia(adapter, {
             role: attributes.role,
             bio: attributes.bio,
             createdAt: attributes.createdAt,
+            avatarUrl: attributes.avatarUrl, // Ajout de l'avatar si nécessaire
+            dateOfBirth: attributes.dateOfBirth,
         };
     },
 });
@@ -100,10 +104,9 @@ export const getSession = cache(
     async (): Promise<
         { user: import("lucia").User; session: Session } | { user: null; session: null }
     > => {
-        // CORRECTION APPLIQUÉE : Await sur cookies() et stockage dans une variable
-        // pour résoudre l'erreur de typage liée à la Promise.
-        const cookieStore = await cookies(); // Retiré l'await pour la version la plus à jour de Next.js
-        const sessionId = cookieStore.get(lucia.sessionCookieName)?.value ?? null; // Utilisez le store
+        // cookies() peut être async dans certains contextes Next.js
+        const cookieStore = await cookies();
+        const sessionId = cookieStore.get(lucia.sessionCookieName)?.value ?? null;
 
         if (!sessionId) {
             return { user: null, session: null };
@@ -112,30 +115,8 @@ export const getSession = cache(
         // Valide la session auprès de Lucia et de la base de données
         const result = await lucia.validateSession(sessionId);
 
-        try {
-            // NOTE: Si le type cookies() est réellement Promise, vous devrez décommenter ceci
-            // et utiliser await:
-            // const cookieStore = await cookies();
-
-            if (result.session && result.session.fresh) {
-                const sessionCookie = lucia.createSessionCookie(result.session.id);
-                cookieStore.set( // Utilisation de cookieStore.set
-                    sessionCookie.name,
-                    sessionCookie.value,
-                    sessionCookie.attributes
-                );
-            }
-            if (!result.session) {
-                const sessionCookie = lucia.createBlankSessionCookie();
-                cookieStore.set( // Utilisation de cookieStore.set
-                    sessionCookie.name,
-                    sessionCookie.value,
-                    sessionCookie.attributes
-                );
-            }
-        } catch (error) {
-            console.error("Erreur lors de la manipulation des cookies de session:", error);
-        }
+        // Note: Cookie setting should be handled by the caller or Lucia middleware
+        // In server components, cookies cannot be set directly
 
         return result;
     }

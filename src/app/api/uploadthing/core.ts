@@ -30,7 +30,6 @@ export const ourFileRouter = {
       return { userId: user.id };
     })
     .onUploadComplete(async ({ metadata, file }) => {
-      console.log("Image uploadée par", metadata.userId);
       // Création de l'entrée en DB
       const dbFile = await prisma.file.create({
         data: {
@@ -83,8 +82,7 @@ export const ourFileRouter = {
       if (!user || user.role === "READER") throw new UploadThingError("Unauthorized: Vous devez être auteur ou bibliothécaire.");
       return { userId: user.id };
     })
-    .onUploadComplete(async ({ metadata, file }) => {
-      console.log("Document académique uploadé:", slugifyFilename(file.name));
+    .onUploadComplete(async ({ metadata, file }) => {;
       
       // Enregistrement automatique dans Prisma
       const dbFile = await prisma.file.create({

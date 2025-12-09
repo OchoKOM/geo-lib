@@ -38,6 +38,7 @@ import {
   BookType
 } from '@/lib/types'
 import { CurrentEntity } from '@/lib/dashboard-config'
+import { Combobox, ComboboxContent, ComboboxItem, ComboboxLabel, ComboboxTrigger, ComboboxValue } from '../ui/combobox'
 
 interface DashboardFormProps {
   currentEntity: CurrentEntity
@@ -276,26 +277,26 @@ export function DashboardForm({
             <label className='text-xs font-semibold mb-1 block text-slate-500'>
               Auteur du document
             </label>
-            <Select
+            <Combobox
               value={bk.authorId || ''}
               onValueChange={v => updateData('authorId', v)}
             >
-              <SelectTrigger className='dark:bg-slate-800 dark:border-slate-700'>
-                <SelectValue placeholder='Sélectionner un auteur...' />
-              </SelectTrigger>
-              <SelectContent className='dark:bg-slate-800 dark:border-slate-700 max-h-60'>
+              <ComboboxTrigger className='dark:bg-slate-800 dark:border-slate-700'>
+                <ComboboxValue placeholder='Sélectionner un auteur...' />
+              </ComboboxTrigger>
+              <ComboboxContent className='dark:bg-slate-800 dark:border-slate-700 max-h-60'>
                 {authorProfiles.length === 0 && (
                   <div className='p-2 text-xs text-muted-foreground'>
                     Aucun auteur trouvé. Créez-en un d&apos;abord.
                   </div>
                 )}
                 {authorProfiles.map(p => (
-                  <SelectItem key={p.id} value={p.id}>
+                  <ComboboxItem key={p.id} value={p.id} label={p.user.name}>
                     {p.user.name} (@{p.user.username})
-                  </SelectItem>
+                  </ComboboxItem>
                 ))}
-              </SelectContent>
-            </Select>
+              </ComboboxContent>
+            </Combobox>
           </div>
 
           {/* ZONE UPLOADTHING */}
@@ -372,54 +373,55 @@ export function DashboardForm({
             onChange={e => updateData('publicationYear', Number(e.target.value))}
           />
 
-          <Select
+          <Combobox
             value={bk.type || ''}
             onValueChange={v => updateData('type', v as BookType)}
           >
-            <SelectTrigger className='dark:bg-slate-800 dark:border-slate-700'>
-              <SelectValue placeholder='Type de document' />
-            </SelectTrigger>
-            <SelectContent className='dark:bg-slate-800 dark:border-slate-700'>
+            <ComboboxTrigger className='dark:bg-slate-800 dark:border-slate-700'>
+              <ComboboxValue placeholder='Type de document' />
+            </ComboboxTrigger>
+            <ComboboxContent className='dark:bg-slate-800 dark:border-slate-700'>
               {Object.values(BookType).map(t => (
-                <SelectItem key={t} value={t}>
+                <ComboboxItem key={t} value={t} >
                   {t}
-                </SelectItem>
+                </ComboboxItem>
               ))}
-            </SelectContent>
-          </Select>
+            </ComboboxContent>
+          </Combobox>
 
-          <Select
+          <Combobox
             value={bk.departmentId || ''}
             onValueChange={v => updateData('departmentId', v)}
           >
-            <SelectTrigger className='dark:bg-slate-800 dark:border-slate-700'>
-              <SelectValue placeholder='Département' />
-            </SelectTrigger>
-            <SelectContent className='dark:bg-slate-800 dark:border-slate-700'>
+            <ComboboxTrigger className='dark:bg-slate-800 dark:border-slate-700'>
+              <ComboboxValue placeholder='Rechercher un Département' />
+            </ComboboxTrigger>
+            <ComboboxContent className='dark:bg-slate-800 dark:border-slate-700'>
               {departments.map(d => (
-                <SelectItem key={d.id} value={d.id}>
+                <ComboboxItem key={d.id} value={d.id} label={d.name}>
                   {d.name}
-                </SelectItem>
+                </ComboboxItem>
               ))}
-            </SelectContent>
-          </Select>
+            </ComboboxContent>
+          </Combobox>
 
           <div className='md:col-span-2'>
-            <Select
+            <Combobox
               value={bk.studyAreaIds?.[0] || ''}
               onValueChange={v => updateData('studyAreaIds', [v])}
+              placeholder="Zone d'étude principale" 
             >
-              <SelectTrigger className='dark:bg-slate-800 dark:border-slate-700'>
-                <SelectValue placeholder="Zone d'étude principale" />
-              </SelectTrigger>
-              <SelectContent className='dark:bg-slate-800 dark:border-slate-700'>
+              <ComboboxTrigger className='dark:bg-slate-800 dark:border-slate-700'>
+                <ComboboxLabel placeholder="Selectionner une Zone d'étude"/>
+              </ComboboxTrigger>
+              <ComboboxContent className='dark:bg-slate-800 dark:border-slate-700'>
                 {studyAreas.map(s => (
-                  <SelectItem key={s.id} value={s.id}>
+                  <ComboboxItem key={s.id} value={s.id} label={s.name}>
                     {s.name}
-                  </SelectItem>
+                  </ComboboxItem>
                 ))}
-              </SelectContent>
-            </Select>
+              </ComboboxContent>
+            </Combobox>
           </div>
         </div>
       )
@@ -434,22 +436,23 @@ export function DashboardForm({
             <span className='font-semibold'>Utilisateur :</span>{' '}
             {userEntity.username}
           </div>
-          <Select
+          <Combobox
             value={usr.role || userEntity.role}
             onValueChange={v => updateData('role', v as UserRole)}
             disabled={!isAuthorized(UserRole.ADMIN)}
+            placeholder='Rechercher un Rôle'
           >
-            <SelectTrigger className='dark:bg-slate-800 dark:border-slate-700 dark:text-white'>
-              <SelectValue placeholder='Rôle' />
-            </SelectTrigger>
-            <SelectContent className='dark:bg-slate-800 dark:border-slate-700 dark:text-white'>
+            <ComboboxTrigger className='dark:bg-slate-800 dark:border-slate-700 dark:text-white'>
+              <ComboboxLabel />
+            </ComboboxTrigger>
+            <ComboboxContent className='dark:bg-slate-800 dark:border-slate-700 dark:text-white'>
               {Object.values(UserRole).map(r => (
-                <SelectItem key={r} value={r}>
+                <ComboboxItem key={r} value={r} label={r}>
                   {r}
-                </SelectItem>
+                </ComboboxItem>
               ))}
-            </SelectContent>
-          </Select>
+            </ComboboxContent>
+          </Combobox>
           <div className='flex items-center space-x-2 dark:text-slate-200'>
             <input
               type='checkbox'

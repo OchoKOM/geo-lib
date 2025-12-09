@@ -158,7 +158,6 @@ async function getCatalogData(
 // =================================================================
 
 export default async function CatalogPage({ searchParams }: CatalogPageProps) {
-    console.log(searchParams);
     
   const { books, filters } = await getCatalogData(searchParams)
 

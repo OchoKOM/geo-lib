@@ -79,6 +79,7 @@ export async function GET(req: NextRequest) {
                 })) as unknown as DashboardUser[];
                 break;
             case 'author_profiles':
+            case 'create_ghost_author':
                 data = (await prisma.authorProfile.findMany({
                     include: { user: { select: { name: true, username: true, dateOfBirth: true } } }
                 })) as unknown as DashBoardAuthorProfile[];
@@ -190,7 +191,8 @@ export async function POST(req: NextRequest) {
                     return user;
                 });
                 return SUCCESS(ghostUser, `Auteur ${ghostData.name} créé.`);
-           case 'author_profiles':
+            case 'author_profiles':
+            case 'create_ghost_author':
                 const { userId, biography, dateOfDeath } = data;
                 if (!userId) return BAD_REQUEST("UserId et Biographie requis.");
                 
@@ -209,9 +211,6 @@ export async function POST(req: NextRequest) {
             case 'books':
                 const bookData = data as BookSchema;
                 const { studyAreaIds, publicationYear, ...restBookData } = bookData;
-
-                console.log(data);
-                
 
                 // 1. Préparer la connexion many-to-many explicite pour BookStudyArea
                 // NOTE: Votre schema BookStudyArea n'a QUE bookId et studyAreaId. 
@@ -376,7 +375,9 @@ export async function DELETE(req: NextRequest) {
             case 'departments': await prisma.department.delete({ where: { id } }); break;
             case 'studyareas': await prisma.studyArea.delete({ where: { id } }); break;
             case 'books': await prisma.book.delete({ where: { id } }); break;
-            case 'author_profiles': await prisma.authorProfile.delete({ where: { id } });
+            case 'author_profiles':
+            case 'create_ghost_author':
+               await prisma.authorProfile.delete({ where: { id } });
                 break;
             case 'users': await prisma.user.delete({ where: { id } }); break;
             default: return BAD_REQUEST('Suppression non supportée.');

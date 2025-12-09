@@ -10,12 +10,11 @@ import {
 
 // --- HELPERS ---
 const UNAUTHORIZED = (msg: string) => NextResponse.json({ success: false, message: msg }, { status: 401 });
-const FORBIDDEN = (msg: string) => NextResponse.json({ success: false, message: msg }, { status: 403 });
 const BAD_REQUEST = (msg: string) => NextResponse.json({ success: false, message: msg }, { status: 400 });
 const SUCCESS = <T>(data: T, msg: string) => NextResponse.json({ success: true, data, message: msg }, { status: 200 });
 
-async function checkAdmin(req: NextRequest) {
-    const { user, session } = await getSession();
+async function checkAdmin() {
+    const { user } = await getSession();
     if (!user) return null;
     if (user.role !== UserRole.ADMIN && user.role !== UserRole.LIBRARIAN) return null; // Admin ou Bibliothécaire
     return user;
@@ -25,7 +24,7 @@ async function checkAdmin(req: NextRequest) {
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const type = searchParams.get('type');
-    const user = await checkAdmin(req);
+    const user = await checkAdmin();
 
     if (!user) return UNAUTHORIZED('Accès réservé aux administrateurs.');
 
@@ -70,7 +69,7 @@ export async function GET(req: NextRequest) {
 
 // --- POST (Création) ---
 export async function POST(req: NextRequest) {
-    const user = await checkAdmin(req);
+    const user = await checkAdmin();
     if (!user) return UNAUTHORIZED('Non autorisé.');
 
     const body = await req.json();
@@ -142,7 +141,7 @@ export async function POST(req: NextRequest) {
 
 // --- PATCH (Mise à jour - ex: Retourner un livre) ---
 export async function PATCH(req: NextRequest) {
-    const user = await checkAdmin(req);
+    const user = await checkAdmin();
     if (!user) return UNAUTHORIZED('Non autorisé.');
 
     const body = await req.json();
@@ -169,6 +168,8 @@ export async function PATCH(req: NextRequest) {
         }
         return BAD_REQUEST('Action inconnue.');
     } catch (error) {
+        console.log(error);
+        
         return NextResponse.json({ success: false, message: 'Erreur serveur' }, { status: 500 });
     }
 }

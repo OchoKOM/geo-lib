@@ -11,7 +11,8 @@ import {
   AlertCircle,
   Ban,
   UserCog,
-  Edit
+  Edit,
+  UserPlus
 } from 'lucide-react'
 
 // --- 1. IMPORTS DES COMPOSANTS UI ---
@@ -269,7 +270,8 @@ export default function DashboardPage() {
     )
 
   const activeNavLabel =
-    NAV_ITEMS.find(n => n.type === activeTab)?.label || 'Dashboard'
+    NAV_ITEMS.find(n => n.type === activeTab)?.label || 'Tableau de bord'
+    
 
   return (
     <div className='flex h-[calc(100vh-64px)] max-h-[calc(100vh-64px)] w-full overflow-y-auto bg-slate-100 dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-200'>
@@ -322,16 +324,15 @@ export default function DashboardPage() {
                 fetchData(activeTab)
               }}
               disabled={loading}
-              className='dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'
+              className='flex gap-2 items-center dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'
             >
-              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               <span className='hidden sm:inline'>Actualiser</span>
             </Button>
-            {activeTab === 'users' && isAuthorized(UserRole.LIBRARIAN) && (
+            {activeTab === 'create_ghost_author' && isAuthorized(UserRole.LIBRARIAN) && (
               <Button
                 size='sm'
-                variant='outline'
-                className='text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-900/20'
+                className=''
                 onClick={() => {
                   setCurrentEntity({
                     type: 'create_ghost_author',
@@ -342,7 +343,7 @@ export default function DashboardPage() {
                   setIsFormDialogOpen(true)
                 }}
               >
-                <UserCog className='w-4 h-4 mr-2' /> Auteur
+                <UserPlus className='w-4 h-4' /> <span className='hidden sm:inline'>Auteur</span>
               </Button>
             )}
             {((activeTab === 'books' && isAuthorized(UserRole.AUTHOR)) ||
@@ -350,7 +351,7 @@ export default function DashboardPage() {
                 isAuthorized(UserRole.LIBRARIAN))) && (
               <Button
                 size='sm'
-                className='bg-blue-600 hover:bg-blue-700 text-white'
+                className='bg-blue-600 hover:bg-blue-700 text-white flex gap-2 items-center'
                 onClick={() => {
                   setCurrentEntity({
                     type: activeTab,
@@ -360,7 +361,7 @@ export default function DashboardPage() {
                   setIsFormDialogOpen(true)
                 }}
               >
-                <Plus className='w-4 h-4 mr-2' />
+                <Plus className='w-4 h-4' />
                 <span className='hidden sm:inline'>Nouveau</span>
               </Button>
             )}
@@ -426,7 +427,7 @@ export default function DashboardPage() {
               {currentEntity?.type === 'author_profiles'
                 ? 'Créer un profil auteur'
                 : `${currentEntity?.isEditing ? 'Modifier' : 'Ajouter'} ${
-                    NAV_ITEMS.find(n => n.type === currentEntity?.type)?.label
+                    NAV_ITEMS.find(n => n.type === currentEntity?.type)?.label || ""
                   }`}
             </DialogTitle>
             <DialogDescription className='dark:text-slate-400'>
@@ -463,7 +464,7 @@ export default function DashboardPage() {
             {/* Masquer le bouton Enregistrer si on est en train de créer une zone d'étude (redirection map) */}
             {!(currentEntity?.type === 'studyareas' && !currentEntity.isEditing) && (
               <Button onClick={handleAction} disabled={loading}>
-                {loading && <Loader2 className='w-4 h-4 mr-2 animate-spin' />}
+                {loading && <Loader2 className='w-4 h-4 animate-spin' />}
                 Enregistrer
               </Button>
             )}
