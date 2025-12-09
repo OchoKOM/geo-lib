@@ -65,7 +65,7 @@ const commonLinks: NavLink[] = [
     requires: ['INVITE', 'READER', 'AUTHOR', 'LIBRARIAN', 'ADMIN']
   },
   {
-    href: '/map',
+    href: '/maps',
     label: 'Carte Interactive',
     page: "Carte",
     icon: <Map className='w-4 h-4' />,

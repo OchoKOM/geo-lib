@@ -11,6 +11,8 @@ function slugifyFilename(name: string) {
   return cleanedName.replace(/-+/g, '-').toLowerCase();
 }
 
+
+
 export const ourFileRouter = {
   // 1. Route Image (Couvertures)
   imageUploader: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })

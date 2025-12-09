@@ -89,7 +89,7 @@
   --secondary: oklch(0.21 0.04 265.75);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.21 0.04 265.75);
-  --muted-foreground: oklch(0.705 0.015 286.067);
+  --muted-foreground: oklch(0.8 0.06 257.5);
   --accent: oklch(0.21 0.04 265.75);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: #ef4444;
@@ -159,4 +159,12 @@
 
 html{
   color-scheme: light dark;
+}
+
+.dark  .leaflet-layer,
+.dark .leaflet-control-zoom-in,
+.dark .leaflet-control-zoom-out,
+.dark .leaflet-draw,
+.dark .leaflet-control-attribution {
+  filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
 }

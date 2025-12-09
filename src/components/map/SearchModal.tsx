@@ -81,7 +81,7 @@ export default function SearchModal({
     const darkUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
     const lightUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
     
-    tileLayerRef.current = L.tileLayer(isDarkMode ? darkUrl : lightUrl, { maxZoom: 19 }).addTo(miniMapRef.current)
+    tileLayerRef.current = L.tileLayer(lightUrl, { maxZoom: 19 }).addTo(miniMapRef.current)
     tileLayerRef.current.bringToBack()
   }, [isDarkMode, open])
 

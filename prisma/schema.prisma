@@ -21,7 +21,7 @@ enum UserRole {
 enum FileType {
   COVER_IMAGE
   DOCUMENT_PDF
-  GEOJSON_DATA
+  GEOJSON
   AVATAR
 }
 

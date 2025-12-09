@@ -301,7 +301,7 @@ const LayerList = ({
         <div className={`flex flex-1 flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 transition-all duration-300 z-20 shadow-xl ${sidebarOpen ? 'w-80 translate-x-0' : 'w-0 -translate-x-full opacity-0 overflow-hidden'}`}>
             <div className='p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col gap-3 bg-slate-50 dark:bg-slate-900'>
                 <h2 className='font-bold flex items-center justify-between gap-2 text-sm uppercase tracking-wider text-slate-600 dark:text-slate-400'>
-                    <span className='flex items-center gap-2'><Layers className='w-4 h-4' /> Gestion ({layers.length})</span>
+                    <span className='flex items-center gap-2'><Layers className='w-4 h-4' /> Couches ({layers.length})</span>
                     <Button size='sm' variant='ghost' className='h-8 w-8 p-0' onClick={() => setSidebarOpen(false)}>
                         <ChevronLeft className='w-4 h-4' />
                     </Button>
@@ -497,7 +497,7 @@ export default function GeoMap() {
         if (tileLayerRef.current) mapRef.current.removeLayer(tileLayerRef.current)
         const darkUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
         const lightUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-        tileLayerRef.current = L.tileLayer(isDarkMode ? darkUrl : lightUrl, { maxZoom: 19, attribution: isDarkMode ? '&copy; CartoDB' : '&copy; OSM' }).addTo(mapRef.current)
+        tileLayerRef.current = L.tileLayer(lightUrl, { maxZoom: 19, attribution: isDarkMode ? '&copy; CartoDB' : '&copy; OSM' }).addTo(mapRef.current)
         tileLayerRef.current.bringToBack()
     }, [isDarkMode, isMounted])
 
