@@ -71,7 +71,7 @@ export default async function EditMapPage({ params }: { params: { mapId: string 
   }))
 
   return (
-    <div className="h-screen w-full flex flex-col">
+    <div className="h-full relative w-full flex flex-col">
       <EditMapClient 
         studyArea={studyArea} 
         initialGeoJson={initialGeoJson}
