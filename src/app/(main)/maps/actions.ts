@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 "use server";
 
 import prisma from "@/lib/prisma";
@@ -17,6 +18,7 @@ interface UpdateMapState {
 // Ce helper est crucial pour supporter MultiPolygon, MultiLineString, etc.
 function geojsonToWKT(geometry: Geometry): string {
   const type = geometry.type;
+  // @ts-expect-error
   const coords = geometry.coordinates;
 
   if (!coords || coords.length === 0) throw new Error("Coordonnées invalides");
@@ -28,10 +30,10 @@ function geojsonToWKT(geometry: Geometry): string {
       return `POINT(${formatCoord(coords)})`;
 
     case "MultiPoint":
-      return `MULTIPOINT(${coords.map((c) => formatCoord(c)).join(", ")})`;
+      return `MULTIPOINT(${coords.map((c: number[]) => formatCoord(c)).join(", ")})`;
 
     case "LineString":
-      return `LINESTRING(${coords.map((c) => formatCoord(c)).join(", ")})`;
+      return `LINESTRING(${coords.map((c: number[]) => formatCoord(c)).join(", ")})`;
 
     case "MultiLineString":
       return `MULTILINESTRING(${coords
@@ -115,7 +117,7 @@ export async function updateStudyArea(
       ) {
         geometry = {
           type: "MultiPolygon",
-          coordinates: geojsonData.features.map((f) =>
+          coordinates: geojsonData.features.map((f: { geometry: { type: string; coordinates: unknown[]; }; }) =>
             f.geometry.type === "Polygon"
               ? f.geometry.coordinates
               : f.geometry.coordinates[0]

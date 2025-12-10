@@ -318,14 +318,14 @@ export async function PATCH(req: NextRequest) {
 
             case 'books':
                 const cleanData = cleanBookUpdateData(data);
-                
-                const { studyAreaIds, publicationYear, authorId, documentFileId, departmentId, academicYearId, coverImageId, ...restBookUpdate } = cleanData;
+
+                const { studyAreaIds, publicationYear, authorId, documentFileId, departmentId, academicYearId, coverImageId, documentFile, ...restBookUpdate } = cleanData;
                 await prisma.book.update({
                     where: { id },
                     data: {
                         ...restBookUpdate,
                         ...(publicationYear ? { postedAt: publicationYear} : {}),
-                        ...(authorId ? { authorId } : {}),
+                        ...(authorId ? { authorId } : { authorId: undefined }),
                         ...(documentFileId ? { documentFileId } : {}),
                         ...(departmentId ? {departmentId} : {}),
                         ...(academicYearId ? {academicYearId} : {}),

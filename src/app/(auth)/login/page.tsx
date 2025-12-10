@@ -9,7 +9,6 @@ import { useSearchParams } from 'next/navigation'
 import { loginAction } from '../../auth/actions'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { getSession } from '@/lib/auth'
 
 // --- TYPES DE RETOUR ---
 type AuthActionState = {
@@ -18,7 +17,7 @@ type AuthActionState = {
   callbackUrl?: string
   fields: {
     name: string
-    email: string
+    identifier: string
   }
 }
 
@@ -26,7 +25,19 @@ type AuthActionState = {
 const initialState: AuthActionState = {
   error: null,
   success: undefined,
-  fields: { name: '', email: '' }
+  fields: { name: '', identifier: '' }
+}
+
+function checkIfUsernameOrEmail(field: string) {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const usernameRegex = /^[a-zA-Z0-9-_]{3,20}$/
+  if (emailRegex.test(field)) {
+    return 'email'
+  } else if (usernameRegex.test(field)) {
+    return 'username'
+  } else {
+    return null
+  }
 }
 
 /**
@@ -116,7 +127,18 @@ function LoginForm () {
   const [state, formAction] = useFormState(loginAction, { ...initialState })
 
   // État local pour contrôler le champ email (Persistance en cas d'erreur)
-  const [email, setEmail] = useState('')
+  const [usernameOrEmail, setUsernameOrEmail] = useState('')
+
+  // Déterminer si l'entrée est un email ou un nom d'utilisateur puis adapter le type de champ
+  function handleUsernameOrEmailChange (e: React.ChangeEvent<HTMLInputElement>) {
+    const inputType = checkIfUsernameOrEmail(e.target.value) === 'email' ? 'email' : 'text'
+    const inputName = inputType === 'email' ? 'email' : 'username'
+    const inputPattern = inputType === 'email' ? '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$' : '^[a-zA-Z0-9-_]{3,20}$'
+    e.target.name = inputName
+    e.target.pattern = inputPattern
+    e.target.type = inputType
+    setUsernameOrEmail(e.target.value)
+  }
 
   // État pour gérer le message de succès post-inscription (via URL Query)
   const [showSuccessMessage, setShowSuccessMessage] = useState(false)
@@ -192,20 +214,20 @@ function LoginForm () {
           {/* Champ Email */}
           <div>
             <label
-              htmlFor='email'
+              htmlFor='emailOrUsername'
               className='block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1'
             >
-              Adresse e-mail
+              Adresse e-mail ou nom d&apos;utilisateur
             </label>
             <Input
-              id='email'
-              name='email'
-              type='email'
+              id='emailOrUsername'
+              name='identifier'
+              type='text'
               required
               placeholder='exemple@geolib.edu'
               // Persistance de la donnée
-              value={email}
-              onChange={e => setEmail(e.target.value)}
+              value={usernameOrEmail}
+              onChange={handleUsernameOrEmailChange}
               className=''
             />
           </div>

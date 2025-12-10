@@ -329,9 +329,9 @@ export interface PaymentSchema {
     reason: string;
     loanId?: string;
 }
-
 export interface SubscriptionSchema {
     userId: string;
+    type: 'monthly' | 'yearly';
+    startDate: Date;
     endDate: Date;
-    isActive: boolean;
 }

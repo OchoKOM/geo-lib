@@ -21,6 +21,13 @@ type AuthActionState = {
     fields: { name: string; email: string; username: string };
     error: string | null;
     success?: boolean;
+    callbackUrl?: string;
+};
+type LoginActionState = {
+    fields: { name: string; identifier: string };
+    error: string | null;
+    success?: boolean;
+    callbackUrl?: string;
 };
 
 
@@ -92,39 +99,38 @@ export async function registerAction(
  * Inclut la gestion d'une URL de retour optionnelle (callbackUrl).
  * @param {AuthActionState} prevState L'état précédent du formulaire.
  * @param {FormData} formData Les données soumises par le formulaire (inclut email, password et callbackUrl).
- * @returns {Promise<AuthActionState>} Un objet contenant un message d'erreur.
+ * @returns {Promise<LoginActionState>} Un objet contenant un message d'erreur.
  */
 export async function loginAction(
-    prevState: AuthActionState,
+    prevState: LoginActionState,
     formData: FormData
-): Promise<AuthActionState> {
+): Promise<LoginActionState> {
     
     // 1. Récupération des données brutes
-    const email = formData.get('email');
+    const identifier = formData.get('identifier');
     const password = formData.get('password');
-    const username = formData.get('username');
     
     // NOUVEAU : Récupération de l'URL de retour (souvent masquée dans le formulaire)
     const callbackUrl = formData.get('callbackUrl');
 
     // 2. Validation Zod côté Server Action
     const validatedFields = LoginSchema.safeParse({
-        email,
+        identifier,
         password,
     });
 
     if (!validatedFields.success) {
         const firstError = validatedFields.error.issues[0].message;
-        return { error: `Erreur de validation: ${firstError}`, fields: { name: '', email: String(email), username: String(username) } };
+        return { error: `Erreur de validation: ${firstError}`, fields: { name: '', identifier: String(identifier) } };
     }
     
-    const { email: validatedEmail, password: validatedPassword } = validatedFields.data;
+    const { identifier: validatedIdentifier, password: validatedPassword } = validatedFields.data;
 
 
     // 3. Appel à la logique métier
     // Note: Le service loginUser gère l'authentification et retourne l'URL par défaut.
     const result = await loginUser({
-        email: validatedEmail,
+        identifier: validatedIdentifier,
         password: validatedPassword
     });
 
@@ -148,7 +154,7 @@ export async function loginAction(
     }
 
     // Si loginUser renvoie une erreur (ex: email/mdp invalide)
-    return { error: result.error, fields: { name: '', email: String(email), username: String(username) } };
+    return { error: result.error, fields: { name: '', identifier: String(identifier) } };
 }
 
 

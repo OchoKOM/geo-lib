@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
 
     // Création complète (User + Profile)
     // Mot de passe par défaut généré (à changer par l'utilisateur)
-    const passwordHash = await hash('Author123!', {
+    const passwordHash = await hash('', {
       // recommended minimum parameters
       memoryCost: 19456,
       timeCost: 2,
@@ -123,6 +123,7 @@ export async function POST(request: NextRequest) {
       data: {
         email,
         name,
+        username: email,
         passwordHash,
         role: 'AUTHOR',
         authorProfile: {

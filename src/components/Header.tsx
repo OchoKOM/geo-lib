@@ -21,7 +21,7 @@ import {
   X,
   Settings
 } from 'lucide-react'
-import { Button } from './ui/button'
+import { Button, buttonVariants } from './ui/button'
 import { useEffect, useState } from 'react'
 import {
   AlertDialog,
@@ -35,6 +35,8 @@ import { usePathname } from 'next/dist/client/components/navigation'
 import { useTheme } from '@/context/ThemeProvider'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu'
 import Logo from './ui/logo'
+import { cn } from '@/lib/utils'
+import Image from 'next/image'
 
 // -----------------------------------------------------------------------------
 // 1. Définition des Liens de Navigation
@@ -245,7 +247,6 @@ export default function Header () {
           {isAuthenticated ? (
             <>
               {/* Bouton 'Mon Compte' pour les connectés */}
-              <Link href='/profile' passHref>
                 <div className='flex items-center gap-1'>
                   <div className='hidden md:flex flex-col items-end mr-2'>
                     <span className='text-sm font-semibold '>
@@ -255,9 +256,14 @@ export default function Header () {
                       {labels[role.toLowerCase() as keyof typeof labels]}
                     </span>
                   </div>
-                  <UserCircle className='w-6 h-6' />
+                  <Link href='/profile' passHref className={cn(buttonVariants({size:"icon", variant:"outline"}), "rounded-full")}>
+                      {user?.avatarUrl ? (
+                        <Image src={user.avatarUrl} alt='Avatar' width={32} height={32} className='w-8 h-8 rounded-full object-cover' />
+                      ) : (
+                      <UserCircle className='w-6 h-6' />
+                        )} 
+                  </Link>
                 </div>
-              </Link>
               {/* LogoutDialog s'affiche uniquement sur desktop pour ne pas encombrer le header mobile */}
               <LogoutDialog isMobile={false} />
             </>
