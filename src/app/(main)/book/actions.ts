@@ -9,15 +9,11 @@ import { z } from 'zod'
 // Schéma de validation pour la mise à jour d'un livre
 const BookSchema = z.object({
   bookId: z.string().cuid('ID de livre invalide'),
-  title: z.string().min(5, "Le titre est trop court."),
-  description: z.string().min(20, "La description est trop courte."),
+  title: z.string().min(3, "Le titre est trop court."),
+  description: z.string().min(20, "La description est trop courte.").nullable(),
   type: z.nativeEnum(BookType, { message: "Type de document invalide." }),
-  
-  // IDs de fichiers (peuvent être null pour supprimer ou changer)
   coverImageId: z.string().optional().nullable(),
   documentFileId: z.string().optional().nullable(),
-
-  // Relations
   departmentId: z.string().optional().nullable(),
   academicYearId: z.string().optional().nullable(),
 })
@@ -48,20 +44,21 @@ export async function updateBook(
   const rawData = {
     bookId: formData.get('bookId') as string,
     title: formData.get('title') as string,
-    description: formData.get('description') as string,
+    description: (formData.get('description')) as string || null,
     type: formData.get('type') as BookType,
-    coverImageId: formData.get('coverImageId') as string || null,
+    coverImageId: (formData.get('coverImageId')) as string || null,
     documentFileId: formData.get('documentFileId') as string || null,
     departmentId: formData.get('departmentId') as string || null,
     academicYearId: formData.get('academicYearId') as string || null,
   }
-
   const validatedFields = BookSchema.safeParse(rawData)
 
   if (!validatedFields.success) {
+    const message = Object.values(validatedFields.error.flatten().fieldErrors).flat().join(' ')
+      
     return {
       success: false,
-      message: "Erreur de validation des champs du livre",
+      message: message || "Erreur de validation des champs du livre",
       errors: validatedFields.error.flatten().fieldErrors
     }
   }
@@ -94,7 +91,7 @@ export async function updateBook(
         where: { id: data.bookId },
         data: {
           title: data.title,
-          description: data.description,
+          description: data.description || "",
           type: data.type,
           
           // Mise à jour de la relation Cover Image (File)

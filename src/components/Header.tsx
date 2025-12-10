@@ -326,13 +326,22 @@ export default function Header () {
           {isAuthenticated ? (
             <>
               <li>
-                <Link
-                  href='/profile'
-                  onClick={closeMenu}
-                  className='flex items-center gap-2 p-3 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors font-medium'
-                >
-                  <UserCircle className='w-4 h-4' />
-                  Mon Compte
+                <Link href='/profile' passHref className='flex items-center gap-1 px-2'>
+                  <div  className={cn(buttonVariants({size:"icon-lg", variant:"outline"}), "rounded-full")}>
+                      {user?.avatarUrl ? (
+                        <Image src={user.avatarUrl} alt='Avatar' width={36} height={36} className='w-9 h-9 rounded-full object-cover' />
+                      ) : (
+                      <UserCircle className='w-6 h-6' />
+                        )} 
+                  </div>
+                  <div className='flex flex-col items-end mr-2'>
+                    <span className='text-sm font-semibold '>
+                      {user?.name || 'Compte'}{' '}
+                    </span>
+                    <span className='text-xs text-muted-foreground'>
+                      {labels[role.toLowerCase() as keyof typeof labels]}
+                    </span>
+                  </div>
                 </Link>
               </li>
               <li>

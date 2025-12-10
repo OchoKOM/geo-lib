@@ -21,6 +21,7 @@ import { BookType } from '@prisma/client'
 import { useMemo, useState } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { Combobox, ComboboxContent, ComboboxItem, ComboboxTrigger, ComboboxValue } from './ui/combobox'
 
 // Interface pour la configuration visuelle d'un type de livre
 export interface TypeConfig {
@@ -509,22 +510,22 @@ export const FacultyFilters = ({ faculties }: FacultyFiltersProps) => {
     items: { value: string; label: string }[]
     icon: React.ElementType
   }) => (
-    <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger className="w-full bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 hover:border-blue-400 transition-colors">
+    <Combobox value={value} onValueChange={onValueChange}>
+      <ComboboxTrigger className="w-full bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 hover:border-blue-400 transition-colors">
         <Icon className="w-4 h-4 text-slate-500 mr-2" />
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700">
-        <SelectItem value="all" className="text-slate-500">
+        <ComboboxValue placeholder={placeholder} />
+      </ComboboxTrigger>
+      <ComboboxContent className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700">
+        <ComboboxItem value="" className="text-slate-500">
           {placeholder} (Tous)
-        </SelectItem>
+        </ComboboxItem>
         {items.map(item => (
-          <SelectItem key={item.value} value={item.value}>
+          <ComboboxItem key={item.value} value={item.value} label={item.label}>
             {item.label}
-          </SelectItem>
+          </ComboboxItem>
         ))}
-      </SelectContent>
-    </Select>
+      </ComboboxContent>
+    </Combobox>
   )
 
   return (
@@ -536,7 +537,7 @@ export const FacultyFilters = ({ faculties }: FacultyFiltersProps) => {
       {/* Select de la Faculté */}
       <SelectComponent
         value={selectedFacultyId}
-        onValueChange={(id)=>handleFacultyChange(id === "all" ? "" : id)}
+        onValueChange={handleFacultyChange}
         placeholder="Sélectionner une Faculté"
         items={faculties.map(f => ({ value: f.id, label: f.name }))}
         icon={GraduationCap}
@@ -545,7 +546,7 @@ export const FacultyFilters = ({ faculties }: FacultyFiltersProps) => {
       {/* Select du Département (désactivé si aucune faculté sélectionnée) */}
       <SelectComponent
         value={selectedDepartmentId}
-        onValueChange={(id)=>handleDepartmentChange(id === "all" ? "" : id)}
+        onValueChange={handleDepartmentChange}
         placeholder="Sélectionner un Département"
         items={availableDepartments.map(d => ({ value: d.id, label: d.name }))}
         icon={Building2}

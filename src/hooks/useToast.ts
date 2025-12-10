@@ -2,6 +2,7 @@
 "use client"
 // src/hooks/useToast.ts
 import { useState, useCallback, useEffect } from 'react';
+import { uuidv4 } from 'zod';
 
 // src/hooks/useToast.ts ou src/types/toast.ts
 
@@ -64,7 +65,7 @@ export function showToast(
   }
 
   const newToast: ToastMessage = {
-    id: crypto.randomUUID(),
+    id: Math.random().toString(36).substr(2, 9),
     msg,
     variant,
   };

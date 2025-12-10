@@ -35,6 +35,7 @@ export default function BookForm({ initialBook, options, isEditable }: { initial
     const [documentId, setDocumentId] = useState(initialBook?.documentFile?.id || null);
     const [documentUrl, setDocumentUrl] = useState(initialBook?.documentFile?.url || null);
     const [documentName, setDocumentName] = useState(initialBook?.documentFile?.name || null);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     const [state, formAction] = useActionState<BookFormState, FormData>(updateBook, {
         message: '',
@@ -45,8 +46,10 @@ export default function BookForm({ initialBook, options, isEditable }: { initial
         if (state.message) {
             if (state.success) {
                 showToast(state.message, 'success');
+                setErrorMessage(null);
             } else {
-                showToast(state.message, 'destructive');
+                showToast("Erreur de validation des champs du livre", 'warning');
+                setErrorMessage(state.message);
             }
         }
     }, [state]);
@@ -131,6 +134,13 @@ export default function BookForm({ initialBook, options, isEditable }: { initial
                 <div className='lg:col-span-3 space-y-6'>
                     <div className='bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4'>
                         <h2 className='text-xl font-semibold mb-4'>Informations Principales</h2>
+
+                        {errorMessage && (
+                            <div className="p-4 mb-4 text-sm text-yellow-700 bg-yellow-100 rounded-lg border border-yellow-200 
+                            dark:bg-yellow-200 dark:text-yellow-800" role="alert">
+                                <span className="font-medium">{errorMessage}</span> 
+                            </div>
+                        )}
 
                         <div className='space-y-2'>
                             <label className='text-sm font-medium text-slate-700 dark:text-slate-300'>Titre</label>

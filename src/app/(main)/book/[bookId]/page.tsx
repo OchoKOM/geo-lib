@@ -12,7 +12,8 @@ interface PageProps {
 
 // Generer les metadata dynamiquement
 export async function generateMetadata ({ params }: PageProps) {
-  const book = await getBookData(params.bookId)
+  const { bookId } = await params
+  const book = await getBookData(bookId)
   if (!book) {
     return {
       title: 'Ouvrage non trouvé'

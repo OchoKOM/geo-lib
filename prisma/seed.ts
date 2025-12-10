@@ -4,159 +4,77 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 /**
- * Insère ou met à jour une faculté et ses départements associés dans la base de données.
+ * Génère et insère un historique d'années académiques dans la base de données.
+ * Les années académiques sont définies du 1er octobre de l'année N au 30 septembre de l'année N+1.
  *
- * NOTE IMPORTANTE : Les noms de facultés et de départements sont stockés SANS leurs préfixes génériques
- * ("Faculté de", "Département de") pour plus de concision.
- *
- * @param facultyName - Nom concis de la faculté (ex: 'Droit').
- * @param departments - Tableau des noms de départements concis (ex: 'Droit Public').
- * @param description - Description de la faculté.
- * @returns La faculté créée ou mise à jour.
+ * @param startYear - L'année de début (ex: 1950 pour l'année 1950-1951).
  */
-async function upsertFacultyWithDepartments(facultyName: string, departments: string[], description: string = '') {
-  // Construction du nom complet pour les logs et la description
-  const fullFacultyName = facultyName.includes(' ') ? `Faculté des ${facultyName}` : `Faculté de ${facultyName}`;
-  console.log(`\nInsertion de la Faculté : ${facultyName} (${fullFacultyName})`);
+async function seedAcademicYears(startYear: number) {
+  // Déterminer l'année de début pour le cycle académique en cours.
+  // Si nous sommes avant octobre, le cycle N/N+1 a commencé l'année N-1.
+  // Si nous sommes en octobre ou après, le cycle N/N+1 a commencé l'année N.
+  const now = new Date();
+  const currentCalendarYear = now.getFullYear();
+  
+  let currentAcademicStartYear = currentCalendarYear;
 
-  // 1. Upsert (mise à jour ou création) de la Faculté
-  const faculty = await prisma.faculty.upsert({
-    where: { name: facultyName }, // Le nom stocké est le nom concis (ex: 'Droit')
-    update: { description },
-    create: {
-      name: facultyName,
-      description: description, // Utilise la description fournie
-    },
-  });
+  // Si le mois est Janvier (0) à Septembre (8), l'année académique actuelle
+  // a commencé l'année précédente (N-1).
+  if (now.getMonth() < 9) { 
+    currentAcademicStartYear -= 1;
+  }
+  
+  const endYear = currentAcademicStartYear + 1; // Ex: si on est en 2025, l'année académique courante est 2025-2026
+  
+  const count = endYear - startYear;
 
-  // 2. Upsert (mise à jour ou création) des Départements associés
-  for (const deptName of departments) {
-    // Le nom stocké est le nom concis (ex: 'Droit Public')
-    await prisma.department.upsert({
-      where: { name: deptName },
-      update: { facultyId: faculty.id },
-      create: {
-        name: deptName,
-        facultyId: faculty.id,
-        // La description est ajustée pour inclure les mots "Département" et "Faculté"
-        description: `Département de ${deptName} au sein de la faculté de(s) ${fullFacultyName}.`,
-      },
+  console.log(`\n--- INSERTION DES ANNÉES ACADÉMIQUES (${startYear}-${startYear + 1} à ${currentAcademicStartYear}-${currentAcademicStartYear + 1}) ---`);
+  
+  const yearsToInsert = [];
+
+  for (let i = 0; i < count; i++) {
+    const currentStartYear = startYear + i;
+    const currentEndYear = currentStartYear + 1;
+
+    // Format de l'année : "2024-2025"
+    const yearString = `${currentStartYear}-${currentEndYear}`;
+    
+    // Convention: Début au 1er octobre (année N)
+    const startDate = new Date(currentStartYear, 9, 1); // Mois 9 = Octobre
+    
+    // Convention: Fin au 30 septembre (année N+1)
+    const endDate = new Date(currentEndYear, 8, 30); // Mois 8 = Septembre
+
+    yearsToInsert.push({
+      year: yearString,
+      startDate: startDate,
+      endDate: endDate,
     });
-    console.log(`   - Département inséré/mis à jour : ${deptName}`);
   }
 
-  return faculty;
+  // Utilisation de upsert séquentiel pour insérer ou mettre à jour
+  for (const data of yearsToInsert) {
+    await prisma.academicYear.upsert({
+      where: { year: data.year },
+      update: {}, // Pas de mise à jour nécessaire si l'année existe déjà
+      create: data,
+    });
+    // console.log(`   - Année académique insérée/mise à jour : ${data.year}`); // Décommenter si besoin de plus de logs
+  }
+  
+  console.log(`   - ${yearsToInsert.length} années académiques traitées.`);
 }
 
 /**
- * Fonction principale pour insérer uniquement les Facultés et Départements.
+ * Fonction principale pour exécuter le seeding.
  */
 async function main() {
-  console.log('Démarrage du seeding de la structure académique...');
+  console.log('Démarrage du seeding des années académiques...');
+  
+  // Insérer l'historique complet depuis 1950
+  await seedAcademicYears(1950);
 
-  // --- Insertion des 13 Facultés et leurs Départements ---
-  console.log('\n--- INSERTION DES FACULTÉS ET DÉPARTEMENTS (Noms entièrement concis) ---');
-
-  // 1. Droit
-  await upsertFacultyWithDepartments('Droit', [
-    'Droit Économique et Social',
-    'Droit Privé et Judiciaire',
-    'Droit Public',
-  ], 'Formation juridique couvrant le droit privé, public et les aspects économiques et sociaux.');
-
-  // 2. Sciences Économiques et de Gestion
-  await upsertFacultyWithDepartments('Sciences Économiques et de Gestion', [
-    'Économie',
-    'Gestion'
-  ], 'Études axées sur la théorie économique, l\'analyse quantitative et la gestion des organisations.');
-
-  // 3. Lettres et Sciences Humaines
-  await upsertFacultyWithDepartments('Lettres et Sciences Humaines', [
-    'Langues et Linguistiques',
-    'Histoire',
-    'Philosophie',
-  ], 'Recherche et enseignement dans les domaines des lettres, des langues, de l\'histoire et de la philosophie.');
-
-  // 4. Médecine
-  await upsertFacultyWithDepartments('Médecine', [
-    "Anatomie Pathologique (Anapath)",
-    "Anesthésie-Réanimation",
-    "Biologie Médicale",
-    "Chirurgie",
-    "Gynécologie et Obstétrique",
-    "Médecine Interne",
-    "Médecine Physique et Réadaptation",
-    "Odonto-stomatologie (transféré à Médecine Dentaire)",
-    "Santé Publique / École de Santé Publique de Kinshasa",
-    "Sciences de Base",
-  ], 'Formation médicale complète, de la médecine générale aux spécialisations cliniques.');
-
-  // 5. Médecine Vétérinaire
-  await upsertFacultyWithDepartments('Médecine Vétérinaire', [
-    'Clinique Vétérinaire',
-    'Hygiène Alimentaire et de Santé Publique Vétérinaire',
-  ], 'Études des maladies animales, de la santé publique vétérinaire et de l\'élevage.');
-
-  // 6. Pétrole, Gaz et Énergies Renouvelables
-  await upsertFacultyWithDepartments('Pétrole, Gaz et Énergies Renouvelables', [
-    'Génie Pétrolier',
-    'Énergies Renouvelables',
-  ], 'Spécialisation dans l\'exploitation des hydrocarbures et le développement de sources d\'énergie propre.');
-
-  // 7. Polytechnique (Génie)
-  await upsertFacultyWithDepartments('Polytechnique (Génie)', [
-    'Génie Civil',
-    'Génie Électrique',
-    'Génie Mécanique',
-  ], 'Formation d\'ingénieurs dans diverses disciplines de l\'ingénierie.');
-
-  // 8. Psychologie et des Sciences de l'Éducation (FPSE)
-  await upsertFacultyWithDepartments('Psychologie et des Sciences de l\'Éducation (FPSE)', [
-    'Gestion des Entreprises et Organisation du Travail',
-    'Psychologie Clinique',
-    'Sciences de l\'Éducation',
-  ], 'Analyse du comportement humain, de l\'apprentissage et de l\'organisation du travail.');
-
-  // 9. Sciences
-  await upsertFacultyWithDepartments('Sciences', [
-    'Biologie',
-    'Chimie',
-    "Environnement",
-    'Géosciences',
-    "Mathématiques et Informatique",
-    'Physique',
-  ], 'Recherche fondamentale et appliquée dans les sciences exactes et naturelles.');
-
-  // 10. Sciences Agronomiques
-  await upsertFacultyWithDepartments('Sciences Agronomiques', [
-    'Production Végétale',
-    'Zootechnie',
-    'Économie Rurale',
-  ], 'Études de l\'agriculture, de la production alimentaire et de la gestion des ressources naturelles.');
-
-  // 11. Sciences Pharmaceutiques
-  await upsertFacultyWithDepartments('Sciences Pharmaceutiques', [
-    'Chimie Pharmaceutique',
-    'Pharmacognosie',
-  ], 'Formation des professionnels de la santé spécialisés dans les médicaments et la pharmacie.');
-
-  // 12. Sciences Sociales, Administratives et Politiques (FSSAP)
-  await upsertFacultyWithDepartments('Sciences Sociales, Administratives et Politiques (FSSAP)', [
-    "Anthropologie",
-    'Relations Internationales',
-    'Sciences Politiques et Administratives',
-    'Sciences du Travail',
-    'Sociologie',
-  ], 'Analyse des structures sociales, des systèmes politiques et de l\'administration publique.');
-
-  // 13. Médecine Dentaire (Odonto-stomatologie)
-  await upsertFacultyWithDepartments('Médecine Dentaire (Odonto-stomatologie)', [
-    'Chirurgie Dentaire',
-    'Prothèse Dentaire',
-  ], 'Formation spécialisée dans les soins bucco-dentaires et l\'odontologie.');
-
-
-  console.log('\nSeeding de la structure académique terminé avec succès.');
+  console.log('\nSeeding des années académiques terminé avec succès.');
 }
 
 /**
@@ -164,7 +82,7 @@ async function main() {
  */
 main()
   .catch((e) => {
-    console.error('Erreur lors du seeding de la structure académique :', e);
+    console.error('Erreur lors du seeding des années académiques :', e);
     process.exit(1);
   })
   .finally(async () => {
