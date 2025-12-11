@@ -14,7 +14,7 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
         
         // Style de fond et de bordure unifié avec AlertDialog :
         // Bordure grise claire/foncée et fond sombre transparent
-        "border-slate-200 dark:border-slate-700 dark:bg-slate-900/50", 
+        "border-slate-200 dark:border-slate-700 bg-background", 
         
         // Focus et validation restent cohérents
         "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
