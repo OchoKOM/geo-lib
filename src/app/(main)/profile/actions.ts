@@ -10,9 +10,7 @@ const ProfileSchema = z.object({
   name: z.string().min(2, "Le nom doit contenir au moins 2 caractères"),
   bio: z.string().optional(),
   dateOfBirth: z.string().optional().nullable(),
-  // Modification : on attend maintenant un ID de fichier (UUID), plus une URL directe
   avatarId: z.string().optional().nullable(),
-  authorBiography: z.string().optional(),
   dateOfDeath: z.string().optional().nullable()
 })
 
@@ -40,15 +38,18 @@ export async function updateUserProfile(
     bio: formData.get('bio') as string,
     dateOfBirth: formData.get('dateOfBirth') as string,
     avatarId: formData.get('avatarId') as string || null, // On récupère l'ID caché
-    authorBiography: formData.get('authorBiography') as string,
   }
 
   const validatedFields = ProfileSchema.safeParse(rawData)
 
+  console.log(validatedFields);
+  
+
   if (!validatedFields.success) {
+    const message = Object.values(validatedFields.error.flatten().fieldErrors).flat().join(' ')
     return {
       success: false,
-      message: "Erreur de validation",
+      message: message || "Erreur de validation",
       errors: validatedFields.error.flatten().fieldErrors
     }
   }
@@ -93,5 +94,40 @@ export async function updateUserProfile(
   } catch (error) {
     console.error("Erreur update profile:", error)
     return { success: false, message: "Une erreur serveur est survenue." }
+  }
+}
+
+export async function deleteAvatar(userId: string) {
+  try {
+    const {user} = await getSession();
+    if (!user) {
+      return { success: false, message: "Non authentifié" };
+    }
+    if (user.id !== userId) {
+      return { success: false, message: "Accès refusé." };
+    }
+    const avatar = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { avatarId: true }
+    });
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        avatar: { disconnect: true },
+        avatarUrl: null
+      }
+    });
+
+    if (avatar?.avatarId) {
+      await prisma.file.update({
+        where: { id: avatar.avatarId },
+        data: { isDeleted: true }
+      });
+    }
+
+    return { success: true, message: "Avatar supprimé avec succès." };
+  }catch (error) {
+    console.error("Erreur suppression avatar:", error);
+    return { success: false, message: "Une erreur serveur est survenue." };
   }
 }

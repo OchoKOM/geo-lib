@@ -22,6 +22,7 @@ enum FileType {
   COVER_IMAGE
   DOCUMENT_PDF
   GEOJSON
+  GEOJSON_DATA
   AVATAR
 }
 
@@ -219,6 +220,7 @@ model File {
   bookDocuments Book[]      @relation("BookDocument")
   studyAreas    StudyArea[]
   userAvatars   User[]      @relation("UserAvatar") // Relation inverse ajoutée
+  isDeleted Boolean @default(false) // Soft delete flag
 }
 
 // --- PRÊTS & FINANCE ---

@@ -35,71 +35,80 @@ const MapPreview = ({ mapData }: { mapData: MapItem }) => {
   const [hasError, setHasError] = useState(false)
 
   useEffect(() => {
-    // 1. Initialisation de la carte (si pas déjà fait)
-    if (!mapContainerRef.current || mapInstanceRef.current) return
+  if (!mapContainerRef.current || mapInstanceRef.current) return
 
-    // Configuration minimaliste (pas de contrôles, pas d'interaction)
-    const map = L.map(mapContainerRef.current, {
-      center: [mapData.centerLat, mapData.centerLng],
-      zoom: 10,
-      zoomControl: false,
-      attributionControl: false,
-      dragging: false,
-      scrollWheelZoom: false,
-      doubleClickZoom: false,
-      touchZoom: false,
-      boxZoom: false
-    })
+  let isMounted = true
 
-    // Fond de carte léger
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19
-    }).addTo(map)
+  const map = L.map(mapContainerRef.current, {
+    center: [mapData.centerLat, mapData.centerLng],
+    zoom: 10,
+    zoomControl: false,
+    attributionControl: false,
+    dragging: false,
+    scrollWheelZoom: false,
+    doubleClickZoom: false,
+    touchZoom: false,
+    boxZoom: false
+  })
 
-    mapInstanceRef.current = map
+  L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+    { maxZoom: 19 }
+  ).addTo(map)
 
-    // 2. Chargement du GeoJSON
-    const loadGeometry = async () => {
-      if (!mapData.geojsonUrl) {
-        setIsLoading(false)
-        return
+  mapInstanceRef.current = map
+
+  const loadGeometry = async () => {
+    if (!mapData.geojsonUrl) {
+      if (isMounted) setIsLoading(false)
+      return
+    }
+
+    try {
+      const geoJson = await kyInstance
+        .get(mapData.geojsonUrl)
+        .json<GeoJsonObject>()
+
+      if (!isMounted || !mapInstanceRef.current) return
+
+      const layer = L.geoJSON(geoJson, {
+        style: {
+          color: '#2563eb',
+          weight: 2,
+          fillColor: '#3b82f6',
+          fillOpacity: 0.2
+        },
+        pointToLayer: (_feature, latlng) =>
+          L.circleMarker(latlng, {
+            radius: 5,
+            color: '#2563eb',
+            fillColor: '#fff',
+            fillOpacity: 1
+          })
+      }).addTo(map)
+
+      if (layer.getBounds().isValid()) {
+        map.fitBounds(layer.getBounds(), { padding: [10, 10] })
       }
-
-      try {
-        const geoJson = await kyInstance.get(mapData.geojsonUrl).json<GeoJsonObject[]>()
-        
-        const layer = L.geoJSON(geoJson, {
-          style: {
-            color: '#2563eb', // Bleu Tailwind
-            weight: 2,
-            fillColor: '#3b82f6',
-            fillOpacity: 0.2
-          },
-          pointToLayer: (_feature, latlng) => {
-             return L.circleMarker(latlng, { radius: 5, color: '#2563eb', fillColor: '#fff', fillOpacity: 1 })
-          }
-        }).addTo(map)
-
-        // Ajuster la vue pour englober la géométrie
-        if (layer.getBounds().isValid()) {
-          map.fitBounds(layer.getBounds(), { padding: [10, 10] })
-        }
-      } catch (error) {
-        console.error("Erreur chargement preview:", error)
+    } catch (error) {
+      if (isMounted) {
+        console.error('Erreur chargement preview:', error)
         setHasError(true)
-      } finally {
-        setIsLoading(false)
       }
+    } finally {
+      if (isMounted) setIsLoading(false)
     }
+  }
 
-    loadGeometry()
+  loadGeometry()
 
-    // Cleanup pour éviter les fuites de mémoire Leaflet
-    return () => {
-      map?.remove()
-      mapInstanceRef.current = null
-    }
-  }, [mapData])
+  return () => {
+    isMounted = false
+    map.remove()
+    mapInstanceRef.current = null
+  }
+}, [mapData])
+
 
   return (
     <div className="relative w-full h-[200px] bg-slate-100 dark:bg-slate-900 overflow-hidden rounded-t-lg border-b border-slate-200 dark:border-slate-800">

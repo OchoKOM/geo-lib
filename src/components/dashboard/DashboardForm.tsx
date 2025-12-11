@@ -97,21 +97,21 @@ export function DashboardForm({
             value={dep.name || ''}
             onChange={e => updateData('name', e.target.value)}
           />
-          <Select
+          <Combobox
             value={dep.facultyId || ''}
             onValueChange={v => updateData('facultyId', v)}
           >
-            <SelectTrigger className='dark:bg-slate-800 dark:border-slate-700 dark:text-white'>
-              <SelectValue placeholder='Faculté parente' />
-            </SelectTrigger>
-            <SelectContent className='dark:bg-slate-800 dark:border-slate-700 dark:text-white'>
+            <ComboboxTrigger className='dark:bg-slate-800 dark:border-slate-700 dark:text-white'>
+              <ComboboxValue placeholder='Faculté parente' />
+            </ComboboxTrigger>
+            <ComboboxContent className='dark:bg-slate-800 dark:border-slate-700 dark:text-white'>
               {faculties.map(f => (
-                <SelectItem key={f.id} value={f.id}>
+                <ComboboxItem key={f.id} value={f.id } label={f.name}>
                   {f.name}
-                </SelectItem>
+                </ComboboxItem>
               ))}
-            </SelectContent>
-          </Select>
+            </ComboboxContent>
+          </Combobox>
         </div>
       )
     case 'studyareas':
@@ -134,7 +134,7 @@ export function DashboardForm({
               </p>
             </div>
             <Button asChild className='bg-blue-600 hover:bg-blue-700'>
-              <Link href='/map' target='_blank' className='flex items-center gap-2'>
+              <Link href='/maps/new' target='_blank' className='flex items-center gap-2'>
                 Aller à la carte interactive <ArrowRight className='w-4 h-4' />
               </Link>
             </Button>
@@ -144,13 +144,20 @@ export function DashboardForm({
 
       return (
         <div className='space-y-4'>
-          <div className='p-3 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 text-xs rounded border border-yellow-200 dark:border-yellow-800 flex gap-2'>
-            <AlertCircle className='w-4 h-4 shrink-0' />
-            <span>
-              Pour modifier la géométrie de la zone, veuillez utiliser
+          <div className='p-3 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 text-xs rounded border border-yellow-200 dark:border-yellow-800 flex gap-2 flex-wrap'>
+          <span>
+            <span className='font-semibold inline-flex px-1'><AlertCircle className='w-4 h-4 shrink-0' />Attention :  </span>
+            <span>Pour modifier la géométrie de la zone, veuillez utiliser
               l&apos;outil carte. Ici, vous ne pouvez modifier que les
               métadonnées.
             </span>
+          </span>
+            
+            <Link href={`/maps/${currentEntity.id}`} target='_blank' className={buttonVariants({
+              size: 'sm'
+            })}>
+              Aller à la carte interactive
+            </Link>
           </div>
           <Input
             className='dark:bg-slate-800 dark:border-slate-700 dark:text-white'

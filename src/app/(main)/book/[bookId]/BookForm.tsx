@@ -136,8 +136,7 @@ export default function BookForm({ initialBook, options, isEditable }: { initial
                         <h2 className='text-xl font-semibold mb-4'>Informations Principales</h2>
 
                         {errorMessage && (
-                            <div className="p-4 mb-4 text-sm text-yellow-700 bg-yellow-100 rounded-lg border border-yellow-200 
-                            dark:bg-yellow-200 dark:text-yellow-800" role="alert">
+                            <div className="p-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 text-xs rounded border border-yellow-200 dark:border-yellow-800 flex gap-2" role="alert">
                                 <span className="font-medium">{errorMessage}</span> 
                             </div>
                         )}

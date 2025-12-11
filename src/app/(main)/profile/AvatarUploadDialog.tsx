@@ -1,14 +1,18 @@
 /* eslint-disable @next/next/no-img-element */
 'use client'
 
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, DragEvent } from 'react'
 import ReactCrop, { Crop, PixelCrop, centerCrop, makeAspectCrop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Camera, Loader2, UploadCloud, User, UserRound, X } from 'lucide-react'
+import { Camera, ImagePlus, Loader2, Trash2, UploadCloud, UserRound, X } from 'lucide-react'
 import { useUploadThing } from '@/lib/uploadthing'
 import { showToast } from '@/hooks/useToast'
+import { cn } from '@/lib/utils'
+import { deleteAvatar } from './actions'
+import { useAuth } from '@/components/AuthProvider'
+import { useRouter } from 'next/navigation'
 
 // --- Helpers pour le crop et le canvas ---
 
@@ -88,6 +92,9 @@ export default function AvatarUploadDialog({ currentAvatarUrl, onAvatarChange }:
   const [crop, setCrop] = useState<Crop>()
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>()
   const [uploading, setUploading] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const { user } = useAuth()
+  const router = useRouter()
   
   const imgRef = useRef<HTMLImageElement>(null)
   
@@ -113,6 +120,42 @@ export default function AvatarUploadDialog({ currentAvatarUrl, onAvatarChange }:
     setImgSrc('')
     setCrop(undefined)
     setCompletedCrop(undefined)
+    setIsDragging(false)
+    router.refresh()
+  }
+
+   const handleDragOver = (e: DragEvent<HTMLLabelElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: DragEvent<HTMLLabelElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }
+
+  // Traitement commun du fichier (issu de l'input ou du drop)
+  function processFile(file: File) {
+    if (!file.type.startsWith('image/')) {
+        showToast("Le fichier doit être une image", "destructive");
+        return;
+    }
+    setCrop(undefined)
+    const reader = new FileReader()
+    reader.addEventListener('load', () => setImgSrc(reader.result?.toString() || ''))
+    reader.readAsDataURL(file)
+  }
+
+  const handleDrop = (e: DragEvent<HTMLLabelElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processFile(e.dataTransfer.files[0])
+    }
   }
 
   function onSelectFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -122,6 +165,22 @@ export default function AvatarUploadDialog({ currentAvatarUrl, onAvatarChange }:
       reader.addEventListener('load', () => setImgSrc(reader.result?.toString() || ''))
       reader.readAsDataURL(e.target.files[0])
     }
+  }
+
+   function handleDeleteAvatar() {
+      if (confirm("Voulez-vous vraiment supprimer votre photo de profil actuelle ?")) {
+          // On passe null pour signaler la suppression
+          setOpen(false);
+          deleteAvatar(user!.id).then((res) => {
+              if (res.success) {
+                  showToast("Avatar supprimé", "success");
+              }else {
+                  showToast(res.message, "destructive");
+              }
+          })
+          onAvatarChange('', '');
+          resetState();
+      }
   }
 
   function onImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
@@ -184,15 +243,52 @@ export default function AvatarUploadDialog({ currentAvatarUrl, onAvatarChange }:
         
         <div className="space-y-4">
           {!imgSrc ? (
-            <div className="flex items-center justify-center w-full">
-              <label htmlFor="dropzone-file" className="flex flex-col items-center justify-center w-full h-64 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:hover:border-slate-500">
-                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      <UploadCloud className="w-10 h-10 mb-3 text-slate-400" />
-                      <p className="mb-2 text-sm text-slate-500 dark:text-slate-400"><span className="font-semibold">Cliquez pour uploader</span></p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">PNG, JPG ou WEBP</p>
-                  </div>
-                  <input id="dropzone-file" type="file" accept="image/*" className="hidden" onChange={onSelectFile} />
-              </label>
+            <div className="flex flex-col gap-4">
+                {/* Zone de Drag & Drop */}
+                <div className="flex items-center justify-center w-full">
+                    <label 
+                        htmlFor="dropzone-file" 
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        className={cn(
+                            "flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200",
+                            isDragging 
+                                ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" 
+                                : "border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800"
+                        )}
+                    >
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center px-4">
+                            <div className={cn("p-4 rounded-full mb-3", isDragging ? "bg-blue-100 dark:bg-blue-800" : "bg-slate-100 dark:bg-slate-800")}>
+                                {isDragging ? (
+                                    <ImagePlus className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                                ) : (
+                                    <UploadCloud className="w-8 h-8 text-slate-400" />
+                                )}
+                            </div>
+                            <p className="mb-2 text-sm text-slate-500 dark:text-slate-400">
+                                <span className="font-semibold text-slate-900 dark:text-white">Cliquez pour uploader</span> ou glissez une image ici
+                            </p>
+                            <p className="text-xs text-slate-500 dark:text-slate-500">
+                                PNG, JPG ou WEBP (Max 2MB)
+                            </p>
+                        </div>
+                        <input id="dropzone-file" type="file" accept="image/*" className="hidden" onChange={onSelectFile} />
+                    </label>
+                </div>
+
+                {/* Bouton de suppression (affiché seulement si un avatar existe déjà) */}
+                {currentAvatarUrl && (
+                    <Button 
+                        variant="destructive" 
+                        className="w-full flex items-center justify-center gap-2"
+                        onClick={handleDeleteAvatar}
+                        type="button"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                        Supprimer la photo actuelle
+                    </Button>
+                )}
             </div> 
           ) : (
             <div className="flex flex-col items-center space-y-4">

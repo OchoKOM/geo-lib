@@ -64,7 +64,7 @@ export default function DocumentFileUploader({ currentFileId, currentFileUrl, cu
             <Button variant="outline" className='w-full justify-start h-auto p-4' disabled={!isEditable && !currentFileUrl}>
                 <FileText className='mr-3 h-5 w-5 text-blue-500' />
                 <div className='flex flex-col items-start'>
-                    <span className='font-medium text-sm truncate max-w-[200px] md:max-w-full line-clamp-2 '>
+                    <span className='font-medium text-sm truncate max-w-[200px] line-clamp-2 '>
                         {currentFileId ? filename : (isEditable ? 'Ajouter le document principal' : "Aucun document disponible")}
                     </span>
                     {currentFileId && <span className='text-xs text-slate-500 dark:text-slate-400'>Cliquez pour {isEditable ? 'modifier' : 'télécharger'}</span>}

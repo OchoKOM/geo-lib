@@ -52,12 +52,6 @@ export const NAV_ITEMS: {
     role: UserRole.LIBRARIAN
   },
   {
-    type: 'author_profiles',
-    label: 'Profil auteur',
-    icon: UserPlus,
-    role: UserRole.LIBRARIAN
-  },
-  {
     type: "create_ghost_author",
     label: "Profil auteur",
     icon: UserPlus,

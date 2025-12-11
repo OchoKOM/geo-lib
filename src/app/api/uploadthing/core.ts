@@ -39,10 +39,18 @@ export const ourFileRouter = {
     .middleware(async () => {
       const { user } = await getSession();
       if (!user) throw new UploadThingError("Unauthorized");
-      return { userId: user.id };
+      return { userId: user.id, avatarUrl: user.avatarUrl };
     })
     .onUploadComplete(async ({ metadata, file }) => {
       const uniqueName = crypto.randomUUID(); // Generate unique name using UUID
+      // Check if user already has an avatar and mark it as deleted
+      if (metadata.avatarUrl) {
+        await prisma.file.updateMany({
+          where: { url: metadata.avatarUrl },
+          data: { isDeleted: true }
+        });
+      }
+      
       const dbFile = await prisma.file.create({
         data: {
           url: file.ufsUrl, // Utilisation de ufsUrl (UploadThing URL)
