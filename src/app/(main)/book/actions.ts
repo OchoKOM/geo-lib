@@ -155,7 +155,11 @@ export async function getBookData(bookId: string) {
                 documentFile: true, // Inclut l'objet File pour l'URL du document
                 department: true,
                 academicYear: true,
-                // Ajoutez d'autres relations si nécessaire (StudyArea, Loans, etc.)
+                studyAreas: {
+                    include: {
+                        studyArea: true
+                    }
+                }
             }
         });
 

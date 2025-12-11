@@ -1,11 +1,11 @@
 "use client"
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { showToast } from "@/hooks/useToast";
 import { SelectTrigger, SelectValue, SelectContent, SelectItem, Select } from "@/components/ui/select";
-import { Loader2, Save, BookOpen, User, Calendar, HashIcon } from "lucide-react";
+import { Loader2, Save, BookOpen, User, Calendar, HashIcon, MapPin } from "lucide-react";
 import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { getBookData, getSelectOptions, BookFormState, updateBook } from "../actions";
@@ -14,6 +14,8 @@ import DocumentFileUploader from "./DocumentFileUploader";
 import { Combobox, ComboboxContent, ComboboxItem, ComboboxTrigger, ComboboxValue } from "@/components/ui/combobox";
 import Image from "next/image";
 import { BookType } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 // Mappage pour l'affichage des types
 export const BookTypeLabels: Record<BookType, string> = {
@@ -126,6 +128,17 @@ export default function BookForm({ initialBook, options, isEditable }: { initial
                             <p className='text-xs text-slate-500 dark:text-slate-400'>
                                 <HashIcon className='inline h-3 w-3 mr-1' /> ID : {initialBook.id}
                             </p>
+                            {initialBook.studyAreas.length > 0 && (
+                                <>
+                                <p className='text-xs text-slate-500 dark:text-slate-400 mb-1'><strong>Zones d&apos;étude associées :</strong></p>
+                               { initialBook.studyAreas.map(sa => ((
+                                    <Link href={`/maps/${sa.studyAreaId}`} key={sa.studyArea.id} className={cn(buttonVariants({variant: "default"}))}>
+                                        <MapPin className='inline h-3 w-3 mr-1' />{sa.studyArea.name}
+                                    </Link>
+                                )))}
+                                </>
+                                )
+                            }
                         </div>
                     </div>
                 </div>
