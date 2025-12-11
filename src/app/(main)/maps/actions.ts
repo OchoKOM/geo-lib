@@ -117,7 +117,7 @@ export async function updateStudyArea(
       ) {
         geometry = {
           type: "MultiPolygon",
-          coordinates: geojsonData.features.map((f: { geometry: { type: string; coordinates: unknown[]; }; }) =>
+          coordinates: geojsonData.features.map((f: { geometry: { type: string; coordinates: []; }; }) =>
             f.geometry.type === "Polygon"
               ? f.geometry.coordinates
               : f.geometry.coordinates[0]
