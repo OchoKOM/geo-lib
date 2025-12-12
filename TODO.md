@@ -1,7 +1,9 @@
-# TODO: Update Database and Generate Unique Names for Avatar Files
+# Fix PrismaClient Initialization Error
 
 ## Tasks
-- [x] Update avatarUploader in src/app/api/uploadthing/core.ts to generate unique file names using UUID
-- [x] Update user table after avatar upload in avatarUploader
-- [x] Verify database updates in actions.ts are correct (already seems handled)
-- [ ] Test the changes to ensure uniqueness and proper database linking
+- [x] Update src/lib/auth.ts to use singleton PrismaClient from prisma.ts
+- [ ] Update src/lib/auth-service.ts to use singleton PrismaClient from prisma.ts
+- [ ] Test the application to ensure the error is resolved
+
+## Details
+The error occurs because auth.ts and auth-service.ts are creating new PrismaClient instances without proper options. The solution is to use the existing singleton from prisma.ts.

@@ -6,22 +6,10 @@
 import { Lucia, Session } from 'lucia';
 import { PrismaAdapter } from '@lucia-auth/adapter-prisma';
 // Importe le modèle User de Prisma avec un alias, plus le client
-import { PrismaClient, User as PrismaUser } from '@prisma/client'; 
+import { User as PrismaUser } from '@prisma/client';
+import prisma from './prisma'; // Use the singleton PrismaClient
 import { cache } from 'react'; // Utiliser 'cache' pour optimiser la validation par requête
 import { cookies } from 'next/headers'; // Nécessaire pour accéder aux cookies
-
-// --- 1. Initialisation Optimisée du Client Prisma ---
-// Nous utilisons une technique pour nous assurer qu'une seule instance de PrismaClient 
-// est créée, en particulier dans un environnement Node.js/Next.js (où le Hot Module 
-// Reloading peut entraîner la création de multiples instances).
-declare global {
-    // Cette déclaration permet de typer l'objet global avec notre client Prisma
-    var prisma: PrismaClient | undefined;
-}
-
-// Assurez-vous d'avoir une seule instance de PrismaClient pour éviter les avertissements/erreurs.
-const prisma = global.prisma || new PrismaClient();
-if (process.env.NODE_ENV !== 'production') global.prisma = prisma;
 
 // --- DÉFINITION DU TYPE DE BASE DE DONNÉES POUR LUCIA ---
 /**

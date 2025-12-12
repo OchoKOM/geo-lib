@@ -5,15 +5,10 @@
 import { z } from "zod";
 import { lucia, getSession } from "./auth";
 import { hash, verify } from "@node-rs/argon2";
-import { PrismaClient, UserRole } from "@prisma/client";
+import { UserRole } from "@prisma/client";
+import prisma from "./prisma"; // Use the singleton PrismaClient
 import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
-
-// --- Initialisation du client Prisma (réutilisation de l'instance globale) ---
-declare global {
-  var prisma: PrismaClient | undefined;
-}
-const prisma = global.prisma || new PrismaClient();
 
 // -----------------------------------------------------------------------------
 // SCHÉMAS DE VALIDATION ZOD
