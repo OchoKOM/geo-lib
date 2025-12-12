@@ -50,7 +50,7 @@ export interface IAuthor {
   lastName: string;
   // etc. (selon votre schéma)
 }
-
+ 
 export interface IBook {
   id: string;
   title: string;
