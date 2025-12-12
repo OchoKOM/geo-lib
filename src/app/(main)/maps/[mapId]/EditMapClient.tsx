@@ -14,7 +14,7 @@ import { showToast } from '@/hooks/useToast'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet-draw/dist/leaflet.draw.css'
-import { StudyArea } from '@prisma/client'
+import { GeometryType, StudyArea } from '@prisma/client'
 import { useUploadThing } from '@/lib/uploadthing'
 
 // --- IMPORTS DES SOUS-COMPOSANTS ---
@@ -118,8 +118,8 @@ export default function EditMapClient({
       const initialLayers: LayerConfig[] = []
       
       // Helper pour init layer
-      const addInitLayer = (id: string, name: string, type: GeometryMode, key: string) => {
-          if (typesFound.has(key) || typesFound.has(`Multi${key}`)) {
+      const addInitLayer = (id: string, name: string, type: GeometryMode, key: GeoJSON.Geometry['type']) => {
+          if (typesFound.has(key as GeoJSON.Geometry['type']) || typesFound.has(`Multi${key}` as GeoJSON.Geometry['type'])) {
             const layer = {
                 id, name, type, visible: true,
                 count: initializedFeatures.filter(f => f.geometry.type.includes(key)).length,
@@ -186,7 +186,7 @@ export default function EditMapClient({
       let targetLayerConfig = activeLayers.find(l => l.id === targetLayer)
       if (!targetLayerConfig || targetLayerConfig.id === 'new') {
           // Si 'new', on trouve la couche correspondant au type de géométrie dessinée
-          const geoType = geoJson.geometry.type.includes('Polygon') ? 'Polygon' : geoJson.geometry.type.includes('LineString') ? 'LineString' : 'Point'
+          const geoType = (geoJson.geometry.type.includes('Polygon') ? 'Polygon' : geoJson.geometry.type.includes('LineString') ? 'LineString' : 'Point') as GeometryMode
           targetLayerConfig = activeLayers.find(l => l.type === geoType && !l.isDatabaseBound) || activeLayers.find(l => l.type === geoType)
       }
 
@@ -253,7 +253,6 @@ export default function EditMapClient({
       })
 
       layer.eachLayer((l) => {
-        // @ts-expect-error
         if (feature.id) layersMapRef.current.set(feature.id, l)
 
         l.on('click', () => {
@@ -364,10 +363,39 @@ export default function EditMapClient({
           const uploadedFile = uploadRes[0];
           
           // B. Création en BDD via Server Action
-          const mainGeometry = layerFeatures.length === 1 ? layerFeatures[0].geometry : {
-               type: 'Multi' + layerConfig.type,
-               coordinates: layerFeatures.map((f: any) => f.geometry.coordinates)
+          const getMultiType = (type: GeometryMode): "MultiPoint" | "MultiLineString" | "MultiPolygon" => {
+            switch (type) {
+              case 'Point': return "MultiPoint" as const;
+              case 'LineString': return "MultiLineString" as const;
+              case 'Polygon': return "MultiPolygon" as const;
+              default: return "MultiPolygon" as const; // fallback
+            }
           };
+          let mainGeometry: GeoJSON.Geometry;
+          if (layerFeatures.length === 1) {
+            mainGeometry = layerFeatures[0].geometry;
+          } else {
+            const multiType = getMultiType(layerConfig.type);
+            let coordinates: GeoJSON.Position[] | GeoJSON.Position[][] | GeoJSON.Position[][][];
+            switch (layerConfig.type) {
+              case 'Point':
+                coordinates = layerFeatures.map(f => (f.geometry as GeoJSON.Point).coordinates) as GeoJSON.Position[];
+                break;
+              case 'LineString':
+                coordinates = layerFeatures.map(f => (f.geometry as GeoJSON.LineString).coordinates) as GeoJSON.Position[][];
+                break;
+              case 'Polygon':
+                coordinates = layerFeatures.map(f => (f.geometry as GeoJSON.Polygon).coordinates) as GeoJSON.Position[][][];
+                break;
+              default:
+                coordinates = layerFeatures.map(f => (f.geometry as GeoJSON.Point).coordinates) as GeoJSON.Position[];
+                break;
+            }
+            mainGeometry = {
+              type: multiType,
+              coordinates
+            } as GeoJSON.Geometry;
+          }
 
           const result = await createStudyAreaFromLayer({
               name,
@@ -397,7 +425,7 @@ export default function EditMapClient({
           if (!res.ok) throw new Error("Impossible de télécharger le GeoJSON");
           const geoJson = await res.json();
           
-          const newFeatures = (geoJson.features || [geoJson]).map((f: any, i: number) => ({
+          const newFeatures = (geoJson.features || [geoJson]).map((f: GeoJSON.Feature, i: number) => ({
               ...f,
               id: `imp-${area.id}-${i}`,
               properties: { ...f.properties, _layerId: area.id } // Tag pour lier à la couche
@@ -473,7 +501,6 @@ export default function EditMapClient({
             map.flyTo(layer.getLatLng(), 16)
             layer.openPopup()
         } else if (layer instanceof L.Polygon || layer instanceof L.Polyline) {
-            // @ts-expect-error
             map.flyToBounds(layer.getBounds(), { padding: [100, 100], maxZoom: 16 })
         }
     }

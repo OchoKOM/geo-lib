@@ -185,14 +185,14 @@ export default function AttributeTableDialog({
                   >
                     <TableCell className="font-medium sticky left-0 z-5 bg-inherit">{feature.id}</TableCell>
                     {columns.map(key => {
-                      const value = feature.properties[key] || ''
+                      const value = feature.properties[key] ? String(feature.properties[key]) : ''
                       const isEditing = editingCell?.featureId === feature.id && editingCell.key === key
 
                       return (
                         <TableCell key={key}>
                           {isEditing ? (
                             <div className='flex items-center gap-1'>
-                              <Input 
+                              <Input
                                 value={currentEditValue}
                                 onChange={(e) => setCurrentEditValue(e.target.value)}
                                 onKeyDown={(e) => { if(e.key === 'Enter') handleSave() }}
@@ -208,7 +208,7 @@ export default function AttributeTableDialog({
                             </div>
                           ) : (
                             <div className="flex justify-between items-center min-h-[32px] group">
-                                <span className='text-sm truncate pr-2'>{value.toString()}</span>
+                                <span className='text-sm truncate pr-2'>{value}</span>
                                 <Button size="icon" variant="ghost" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleEdit(feature.id, key, value)}>
                                     <Edit className="w-3 h-3" />
                                 </Button>

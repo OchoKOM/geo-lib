@@ -79,10 +79,10 @@ export async function updateUserProfile(
           where: { userId: user.id },
           create: {
             userId: user.id,
-            biography: data.authorBiography || ""
+            biography: data.bio || ""
           },
           update: {
-            biography: data.authorBiography || ""
+            biography: data.bio || ""
           }
         })
       }
