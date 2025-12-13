@@ -703,7 +703,8 @@ export default function GeoMap() {
                 setSaveDialogOpen(false)
             }
         } catch (e) {
-            showToast("Erreur sauvegarde.", 'destructive')
+            showToast("Erreur sauvegarde.", 'destructive');
+            console.warn(e);
             setSaveDialogOpen(false)
         }
         finally { setIsSaving(false) }

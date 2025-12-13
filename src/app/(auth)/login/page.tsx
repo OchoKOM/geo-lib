@@ -126,7 +126,7 @@ function LoginForm () {
     }
 
     // Sinon, on regarde l'historique immédiat (referrer)
-    if (typeof document !== 'undefined' && document.referrer) {
+    if (typeof document !== 'undefined' && document.referrer && typeof window !== "undefined") {
       try {
         const referrerUrl = new URL(document.referrer)
         const currentOrigin = window.location.origin
