@@ -152,29 +152,37 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  try {
+  console.log('POST /api/study-areas: Starting request processing')
+    console.log('POST /api/study-areas: Getting session')
     const session = await getSession()
+
+  try {
     if (!session?.user) {
+      console.log('POST /api/study-areas: No session or user')
       return NextResponse.json(
         { error: 'Authentification requise' },
         { status: 401 }
       )
     }
 
+    console.log('POST /api/study-areas: Fetching user details')
     const user = await prisma.user.findUnique({
       where: { id: session.user.id }
     })
 
     if (!user || !['ADMIN', 'LIBRARIAN', 'AUTHOR'].includes(user.role)) {
+      console.log('POST /api/study-areas: Insufficient permissions')
       return NextResponse.json(
         { error: 'Permissions insuffisantes' },
         { status: 403 }
       )
     }
 
+    console.log('POST /api/study-areas: Parsing request body')
     const { name, description, geometryType, geojson, centerLat, centerLng, fileUrl } = await request.json()
 
     if (!name || !geojson) {
+      console.log('POST /api/study-areas: Missing required fields')
       return NextResponse.json(
         { error: 'Le nom et les données GeoJSON sont requis' },
         { status: 400 }
@@ -183,55 +191,82 @@ export async function POST(request: NextRequest) {
 
     const validGeometryTypes = Object.values(GeometryType)
     if (!validGeometryTypes.includes(geometryType as GeometryType)) {
+      console.log('POST /api/study-areas: Invalid geometry type')
       return NextResponse.json(
         { error: `Type de géométrie invalide. Doit être l'un de : ${validGeometryTypes.join(', ')}` },
         { status: 400 }
       )
     }
 
+    console.log('POST /api/study-areas: Preparing geometry for conversion')
     let geometryToConvert = geojson
     if (geojson.type === 'FeatureCollection' && geojson.features && geojson.features.length > 0) {
       geometryToConvert = geojson.features[0].geometry
     }
 
-    const geometryWKT = geojsonToWKT(geometryToConvert)
+    console.log('POST /api/study-areas: Converting GeoJSON to WKT')
+    let geometryWKT: string
+    try {
+      geometryWKT = geojsonToWKT(geometryToConvert)
+      console.log(`POST /api/study-areas: WKT conversion successful, length: ${geometryWKT.length}`)
+    } catch (wktError) {
+      console.error('POST /api/study-areas: WKT conversion failed:', wktError)
+      return NextResponse.json(
+        { error: 'Erreur lors de la conversion des données GeoJSON' },
+        { status: 400 }
+      )
+    }
 
-    const geojsonFile = await prisma.file.create({
-      data: {
-        url: fileUrl || '',
-        name: `${name}.geojson`,
-        mimeType: 'application/json',
-        size: Buffer.byteLength(JSON.stringify(geojson)),
-        type: 'GEOJSON_DATA'
+    console.log('POST /api/study-areas: Starting database transaction')
+    const result = await prisma.$transaction(async (tx) => {
+      console.log('POST /api/study-areas: Creating File record')
+      const geojsonFile = await tx.file.create({
+        data: {
+          url: fileUrl || '',
+          name: `${name}.geojson`,
+          mimeType: 'application/json',
+          size: Buffer.byteLength(JSON.stringify(geojson)),
+          type: 'GEOJSON_DATA'
+        }
+      })
+
+      console.log('POST /api/study-areas: Creating StudyArea record')
+      const studyArea = await tx.studyArea.create({
+        data: {
+          name,
+          description,
+          geometryType: geometryType as GeometryType,
+          centerLat,
+          centerLng,
+          geojsonFileId: geojsonFile.id
+        }
+      })
+
+      console.log('POST /api/study-areas: Updating geometry with raw SQL')
+      try {
+        await tx.$executeRaw`
+          UPDATE "StudyArea"
+          SET geometry = ST_GeomFromText(${geometryWKT}, 4326)
+          WHERE id = ${studyArea.id}
+        `
+        console.log('POST /api/study-areas: Geometry update successful')
+      } catch (sqlError) {
+        console.error('POST /api/study-areas: Raw SQL geometry update failed:', sqlError)
+        throw new Error('Erreur lors de la mise à jour de la géométrie')
       }
+
+      return { studyArea }
     })
 
-    const studyArea = await prisma.studyArea.create({
-      data: {
-        name,
-        description,
-        geometryType: geometryType as GeometryType,
-        centerLat,
-        centerLng,
-        geojsonFileId: geojsonFile.id
-      }
-    })
-
-    // Mise à jour brute SQL pour insérer la géométrie PostGIS
-    await prisma.$executeRaw`
-      UPDATE "StudyArea"
-      SET geometry = ST_GeomFromText(${geometryWKT}, 4326)
-      WHERE id = ${studyArea.id}
-    `
-
+    console.log('POST /api/study-areas: Transaction completed successfully')
     return NextResponse.json({
       success: true,
-      studyArea,
+      studyArea: result.studyArea,
       message: 'Zone d\'étude enregistrée avec succès'
     })
 
   } catch (error) {
-    console.error('Erreur lors de l\'enregistrement de la zone:', error)
+    console.error('POST /api/study-areas: Unexpected error:', error)
     return NextResponse.json(
       { error: 'Erreur interne du serveur' },
       { status: 500 }

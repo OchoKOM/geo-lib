@@ -1,9 +1,9 @@
-# Fix PrismaClient Initialization Error
+# Fix TimeoutError in POST /api/study-areas
 
 ## Tasks
-- [x] Update src/lib/auth.ts to use singleton PrismaClient from prisma.ts
-- [ ] Update src/lib/auth-service.ts to use singleton PrismaClient from prisma.ts
-- [ ] Test the application to ensure the error is resolved
-
-## Details
-The error occurs because auth.ts and auth-service.ts are creating new PrismaClient instances without proper options. The solution is to use the existing singleton from prisma.ts.
+- [x] Add detailed logging throughout the POST function to trace execution
+- [x] Wrap database operations in Prisma transaction for atomicity
+- [x] Add try-catch around WKT conversion
+- [x] Add try-catch around raw SQL geometry update
+- [x] Improve error handling for invalid GeoJSON data
+- [x] Start development server for testing
