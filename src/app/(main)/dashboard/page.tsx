@@ -10,7 +10,6 @@ import {
   Menu,
   AlertCircle,
   Ban,
-  UserCog,
   Edit,
   UserPlus
 } from 'lucide-react'
@@ -45,7 +44,7 @@ import {
 } from '@/lib/types'
 import { Session } from 'lucia'
 
-// --- 3. NOUVEAUX COMPOSANTS SEPARÉS ---
+// --- 3. NOUVEAUX COMjOSANTS SEPARÉS ---
 import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar'
 import { DashboardForm } from '@/components/dashboard/DashboardForm'
 import { DashboardTable } from '@/components/dashboard/DashboardTable'
