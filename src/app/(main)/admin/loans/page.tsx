@@ -30,32 +30,11 @@ export default async function LoansPage () {
         select: { title: true, coverImage: { select: { url: true } } }
       }
     }
-  })
+  }) as LoanSchema[]
 
   // Formatage pour le composant client
   const formattedLoans = loans.map(
-    (
-      loan: {
-        user: {
-          name: string
-          email: string
-        }
-        book: {
-          title: string
-          coverImage: {
-            url: string
-          } | null
-        } | null
-      } & {
-        id: string
-        userId: string
-        loanDate: Date
-        dueDate: Date
-        returnDate: Date | null
-        isOverdue: boolean
-        bookId: string | null
-      }
-    ) => ({
+      loan => ({
       id: loan.id,
       bookTitle: loan.book?.title || 'Sans Titre',
       userName: loan.user.name,
