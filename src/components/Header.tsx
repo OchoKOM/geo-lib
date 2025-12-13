@@ -77,13 +77,6 @@ const commonLinks: NavLink[] = [
 
 const authenticatedLinks: NavLink[] = [
   {
-    href: '/admin/loans',
-    label: 'Gestion Prêts',
-    page: "Admin",
-    icon: <BookOpen className='w-4 h-4' />,
-    requires: ['LIBRARIAN', 'ADMIN']
-  },
-  {
     href: '/dashboard',
     label: 'Tableau de Bord',
     page: "Admin",
