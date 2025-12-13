@@ -78,7 +78,7 @@ La plateforme intègre des fonctionnalités avancées de cartographie, d'authent
 
 1. **Cloner le repository**
 ```bash
-git clone <repository-url>
+git clone https://github.com/OchoKOM/geo-lib
 cd geo-lib
 ```
 
