@@ -1,8 +1,5 @@
-import { PrismaClient } from '@prisma/client';
 
-// Initialisation du client Prisma
-const prisma = new PrismaClient();
-
+import prisma  from "@/lib/prisma"
 /**
  * Génère et insère un historique d'années académiques dans la base de données.
  * Les années académiques sont définies du 1er octobre de l'année N au 30 septembre de l'année N+1.

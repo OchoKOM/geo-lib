@@ -223,7 +223,7 @@ export interface StudyAreaSchema {
 export interface BookSchema {
     title: string;
     description: string;
-    publicationYear: Date;
+    publicationYear: number | null;
     type: BookType;
     departmentId: string;
     authorId?: string; // Lien optionnel vers un auteur
@@ -318,9 +318,21 @@ export type FinanceEntityType = 'loans' | 'subscriptions' | 'payments' | 'profil
 export type FinanceEntityData = DashboardLoan | DashboardSubscription | DashboardPayment | DashboardUser;
 
 export interface LoanSchema {
-    userId: string;
-    bookId: string;
+    id: string;
+    user: {
+        name: string;
+        email: string;
+    };
+    book?: {
+        title: string;
+        coverImage: {
+            url: string;
+        };
+    };
+    loanDate: Date;
     dueDate: Date;
+    returnDate?: Date;
+    isOverdue: boolean;
 }
 
 export interface PaymentSchema {

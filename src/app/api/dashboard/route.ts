@@ -225,7 +225,7 @@ export async function POST(req: NextRequest) {
                         ...restBookData,
                         documentFile: undefined, // Éviter d'envoyer un objet vide
                         description: restBookData.description || '',
-                        postedAt: publicationYear,
+                        postedAt: publicationYear ? new Date(publicationYear, 0, 1) : undefined,
                         studyAreas: {
                             create: connectStudyAreas.map(c => ({
                                 studyAreaId: c.studyArea.connect.id
@@ -255,7 +255,7 @@ function cleanBookUpdateData(bookData: DashboardBook): BookSchema {
     const cleanData: BookSchema = {
         title: bookData.title,
         description: bookData.description,
-        publicationYear: bookData.postedAt,
+        publicationYear: bookData.postedAt.getFullYear(),
         type: bookData.type,
         departmentId: bookData.departmentId || "",
         authorId: bookData.authorId || undefined,

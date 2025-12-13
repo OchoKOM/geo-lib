@@ -268,7 +268,7 @@ export default function Header () {
               <LogoutDialog isMobile={false} />
             </>
           ) : (
-            <Link href='/login' passHref>
+            <Link href={`/login${pathname !== "/" ? `?continue=${encodeURI(pathname)}` : ""}`} passHref>
               <Button
                 variant='ghost'
                 className='hidden sm:flex items-center gap-2 bg-slate-800 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm'
@@ -372,13 +372,15 @@ export default function Header () {
 export function LogoutDialog ({ isMobile }: { isMobile: boolean }) {
   const [isLogingOut, setIsLogingOut] = useState(false)
   const [open, setOpen] = useState(false)
+  const continueUrl = typeof window !== 'undefined' ? window.location.pathname : '/'
   // Gestion de la déconnexion
-  const handleLogout = async () => {
+  const handleLogout = async (continueUrl: string) => {
     // Appel de la Server Action pour déconnecter
     setIsLogingOut(true)
-    await logoutAction()
+    await logoutAction(continueUrl)
     // Le layout de Next.js se rafraîchira, et l'utilisateur reviendra à l'état déconnecté
     setIsLogingOut(false)
+
   }
   function closeDiaog () {
     if (!isLogingOut) {
@@ -426,7 +428,7 @@ export function LogoutDialog ({ isMobile }: { isMobile: boolean }) {
           </Button>
           <Button
             disabled={isLogingOut}
-            onClick={() => handleLogout()}
+            onClick={() => handleLogout(continueUrl)}
             variant='destructive'
           >
             {isLogingOut ? 'Déconnexion...' : 'Oui Se Déconnecter'}

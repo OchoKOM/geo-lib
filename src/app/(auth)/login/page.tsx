@@ -5,16 +5,15 @@ import { useFormState, useFormStatus } from 'react-dom'
 import { ChevronLeft, Moon, Sun, Lock, Loader2 } from 'lucide-react'
 import { useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { loginAction } from '../../auth/actions'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
 // --- TYPES DE RETOUR ---
-type AuthActionState = {
+type LoginActionState = {
   error: string | null
   success?: boolean
-  callbackUrl?: string
   fields: {
     name: string
     identifier: string
@@ -22,7 +21,7 @@ type AuthActionState = {
 }
 
 // Définition de l'état initial pour useFormState
-const initialState: AuthActionState = {
+const initialState: LoginActionState = {
   error: null,
   success: undefined,
   fields: { name: '', identifier: '' }
@@ -42,7 +41,6 @@ function checkIfUsernameOrEmail(field: string) {
 
 /**
  * @component ThemeToggle
- * @description Composant simple pour basculer entre les modes clair et sombre, avec persistance locale.
  */
 function ThemeToggle () {
   const [isDark, setIsDark] = useState(false)
@@ -51,9 +49,7 @@ function ThemeToggle () {
     if (typeof window !== 'undefined') {
       const htmlEl = document.documentElement
       const storedTheme = localStorage.getItem('theme')
-
       let initialDark = false
-
       if (storedTheme === 'dark') {
         initialDark = true
       } else if (storedTheme === 'light') {
@@ -61,13 +57,11 @@ function ThemeToggle () {
       } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
         initialDark = true
       }
-
       if (initialDark) {
         htmlEl.classList.add('dark')
       } else {
         htmlEl.classList.remove('dark')
       }
-
       setIsDark(initialDark)
     }
   }, [])
@@ -77,7 +71,6 @@ function ThemeToggle () {
     htmlEl.classList.toggle('dark')
     const newIsDark = htmlEl.classList.contains('dark')
     setIsDark(newIsDark)
-
     if (typeof window !== 'undefined') {
       const newTheme = newIsDark ? 'dark' : 'light'
       localStorage.setItem('theme', newTheme)
@@ -97,11 +90,9 @@ function ThemeToggle () {
 
 /**
  * @component SubmitButton
- * @description Composant qui gère l'état de chargement du bouton.
  */
 function SubmitButton () {
   const { pending } = useFormStatus()
-
   return (
     <Button
       type='submit'
@@ -116,20 +107,54 @@ function SubmitButton () {
 
 /**
  * @component LoginForm
- * @description Composant principal pour le formulaire de connexion.
  */
 function LoginForm () {
-  // get from the url the redirect url if any
   const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get('back_url') || '/'
+  const router = useRouter()
+  const pathname = usePathname()
+  
+  // Gestion de l'état "continue" pour redirection après succès
+  const [continueUrl, setContinueUrl] = useState('')
 
-  // Récupération de l'état de l'action serveur et de la fonction de soumission
+  // 1. LOGIQUE DE DÉTECTION DE L'HISTORIQUE (REFERRER)
+  useEffect(() => {
+    // Si 'continue' est déjà présent (ex: passé depuis Register), on l'utilise
+    const paramContinue = searchParams.get('continue')
+    if (paramContinue) {
+      setContinueUrl(paramContinue)
+      return
+    }
+
+    // Sinon, on regarde l'historique immédiat (referrer)
+    if (typeof document !== 'undefined' && document.referrer) {
+      try {
+        const referrerUrl = new URL(document.referrer)
+        const currentOrigin = window.location.origin
+        
+        // Sécurité : On accepte uniquement les referrers de notre propre domaine
+        if (referrerUrl.origin === currentOrigin) {
+          const path = referrerUrl.pathname
+          
+          // Anti-boucle : On ne redirige pas vers Login ou Register
+          if (path !== '/login' && path !== '/register' && path !== pathname) {
+            setContinueUrl(path)
+            
+            // UX : Ajout transparent du paramètre dans l'URL du navigateur
+            const newParams = new URLSearchParams(searchParams.toString())
+            newParams.set('continue', path)
+            router.replace(`${pathname}?${newParams.toString()}`)
+          }
+        }
+      } catch (e) {
+        console.error("Erreur lors de la lecture du referrer", e)
+      }
+    }
+  }, [searchParams, pathname, router])
+
+
   const [state, formAction] = useFormState(loginAction, { ...initialState })
-
-  // État local pour contrôler le champ email (Persistance en cas d'erreur)
   const [usernameOrEmail, setUsernameOrEmail] = useState('')
 
-  // Déterminer si l'entrée est un email ou un nom d'utilisateur puis adapter le type de champ
   function handleUsernameOrEmailChange (e: React.ChangeEvent<HTMLInputElement>) {
     const inputType = checkIfUsernameOrEmail(e.target.value) === 'email' ? 'email' : 'text'
     const inputName = inputType === 'email' ? 'email' : 'username'
@@ -140,15 +165,11 @@ function LoginForm () {
     setUsernameOrEmail(e.target.value)
   }
 
-  // État pour gérer le message de succès post-inscription (via URL Query)
   const [showSuccessMessage, setShowSuccessMessage] = useState(false)
-
   const errorMessage = state.error
 
   useEffect(() => {
-    // Gérer le message de succès après inscription (query param success=true)
     const successParam = searchParams.get('success')
-
     if (successParam === 'true' && !state.error) {
       setShowSuccessMessage(true)
     } else {
@@ -159,15 +180,13 @@ function LoginForm () {
   return (
     <div className='flex flex-col items-center justify-center w-full h-full min-h-[100vh] py-8 bg-slate-50 dark:bg-slate-900 transition-colors duration-500 relative'>
       <div className='absolute top-4 left-4 right-4 flex justify-between items-center z-10 sm:top-8 sm:left-8 sm:right-8'>
-        {/* Utilisation de Link pour la navigation Next.js */}
         <Link
-          href='/'
+          href={continueUrl ? continueUrl : '/'} // Retour intelligent vers la page précédente
           className='flex items-center text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800'
         >
           <ChevronLeft className='w-5 h-5 mr-1' />
-          Accueil
+          Retour
         </Link>
-
         <ThemeToggle />
       </div>
 
@@ -175,48 +194,35 @@ function LoginForm () {
         <div className='flex flex-col items-center space-y-2'>
           <Lock className='w-8 h-8 text-indigo-600 dark:text-indigo-400' />
           <h1 className='text-3xl font-bold text-slate-900 dark:text-white'>
-            Connexion à GeoLib
+            Connexion
           </h1>
         </div>
 
         <p className='text-center text-slate-500 dark:text-slate-400 text-sm'>
-          Accédez à votre espace pour gérer les documents et la cartographie.
+          Accédez à votre espace pour gérer les documents.
         </p>
 
-        {/* Affichage des Messages de Succès Post-Inscription */}
         {showSuccessMessage && (
-          <div
-            className='p-3 text-sm text-green-800 bg-green-100 dark:bg-green-900 dark:text-green-300 rounded-lg border border-green-300 dark:border-green-700'
-            role='alert'
-          >
-            Inscription réussie ! Veuillez vous connecter avec vos nouveaux
-            identifiants.
+          <div className='p-3 text-sm text-green-800 bg-green-100 dark:bg-green-900 dark:text-green-300 rounded-lg border border-green-300 dark:border-green-700' role='alert'>
+            Inscription réussie ! Veuillez vous connecter.
           </div>
         )}
 
-        {/* Affichage des Messages d'Erreur Post-Connexion */}
         {errorMessage && (
-          <div
-            className='p-3 text-sm text-red-800 bg-red-100 dark:bg-red-900 dark:text-red-300 rounded-lg border border-red-300 dark:border-red-700'
-            role='alert'
-          >
+          <div className='p-3 text-sm text-red-800 bg-red-100 dark:bg-red-900 dark:text-red-300 rounded-lg border border-red-300 dark:border-red-700' role='alert'>
             {errorMessage}
           </div>
         )}
 
-        {/* Identifiants de test : admin@geolib.edu / P@ssword123 */}
         <form action={formAction} className='space-y-6'>
-          {/* Champ caché pour le Callback URL */}
-          {callbackUrl && (
-            <input type='hidden' name='callbackUrl' value={callbackUrl} />
+          {/* CHAMP CACHÉ POUR LA REDIRECTION (Supporte aussi callbackUrl legacy) */}
+          <input type='hidden' name='continue' value={continueUrl} />
+          {searchParams.get('callbackUrl') && (
+             <input type='hidden' name='callbackUrl' value={searchParams.get('callbackUrl')!} />
           )}
 
-          {/* Champ Email */}
           <div>
-            <label
-              htmlFor='emailOrUsername'
-              className='block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1'
-            >
+            <label htmlFor='emailOrUsername' className='block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1'>
               Adresse e-mail ou nom d&apos;utilisateur
             </label>
             <Input
@@ -225,19 +231,13 @@ function LoginForm () {
               type='text'
               required
               placeholder='exemple@geolib.edu'
-              // Persistance de la donnée
               value={usernameOrEmail}
               onChange={handleUsernameOrEmailChange}
-              className=''
             />
           </div>
 
-          {/* Champ Mot de passe */}
           <div>
-            <label
-              htmlFor='password'
-              className='block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1'
-            >
+            <label htmlFor='password' className='block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1'>
               Mot de passe
             </label>
             <Input
@@ -251,10 +251,7 @@ function LoginForm () {
           </div>
 
           <div className='flex justify-end'>
-            <a
-              href='#'
-              className='text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300 transition duration-200'
-            >
+            <a href='#' className='text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300 transition duration-200'>
               Mot de passe oublié ?
             </a>
           </div>
@@ -264,9 +261,9 @@ function LoginForm () {
 
         <p className='text-center text-sm text-slate-600 dark:text-slate-400'>
           Vous n&apos;avez pas de compte ?{' '}
-          {/* Utilisation de Link pour la navigation Next.js */}
+          {/* LIEN INTELLIGENT POUR PRÉSERVER LE FLUX */}
           <Link
-            href='/register'
+            href={continueUrl ? `/register?continue=${encodeURIComponent(continueUrl)}` : '/register'}
             className='font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300 transition duration-200 hover:underline'
           >
             Créez-en un ici

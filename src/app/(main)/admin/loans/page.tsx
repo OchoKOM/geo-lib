@@ -3,6 +3,7 @@ import { LoanManagement } from '@/components/admin/LoanManagement'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { UserRole } from '@prisma/client'
+import { LoanSchema } from '@/lib/types'
 
 // Empêche le cache pour avoir les données en temps réel
 export const dynamic = 'force-dynamic'
@@ -29,7 +30,7 @@ export default async function LoansPage() {
   })
 
   // Formatage pour le composant client
-  const formattedLoans = loans.map(loan => ({
+  const formattedLoans = loans.map((loan) => ({
     id: loan.id,
     bookTitle: loan.book?.title || "Sans Titre",
     userName: loan.user.name,
@@ -37,10 +38,10 @@ export default async function LoansPage() {
     loanDate: loan.loanDate.toISOString().split('T')[0],
     dueDate: loan.dueDate.toISOString().split('T')[0],
     // Logique de statut
-    status: loan.returnDate 
-      ? 'RETURNED' 
-      : (loan.isOverdue || new Date() > loan.dueDate) 
-        ? 'OVERDUE' 
+    status: loan.returnDate
+      ? 'RETURNED'
+      : (loan.isOverdue || new Date() > loan.dueDate)
+        ? 'OVERDUE'
         : 'ACTIVE',
     coverImage: loan.book?.coverImage?.url
   }))

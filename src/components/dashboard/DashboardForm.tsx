@@ -38,7 +38,14 @@ import {
   BookType
 } from '@/lib/types'
 import { CurrentEntity } from '@/lib/dashboard-config'
-import { Combobox, ComboboxContent, ComboboxItem, ComboboxLabel, ComboboxTrigger, ComboboxValue } from '../ui/combobox'
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxItem,
+  ComboboxLabel,
+  ComboboxTrigger,
+  ComboboxValue
+} from '../ui/combobox'
 
 interface DashboardFormProps {
   currentEntity: CurrentEntity
@@ -54,7 +61,7 @@ interface DashboardFormProps {
   setUploadedFileName: (name: string | null) => void
 }
 
-export function DashboardForm({
+export function DashboardForm ({
   currentEntity,
   setCurrentEntity,
   faculties,
@@ -69,7 +76,7 @@ export function DashboardForm({
 }: DashboardFormProps) {
   const { type, data, isEditing } = currentEntity
 
-  const updateData = (k: string, v: string | number | boolean | string[]) => {
+  const updateData = (k: string, v: string | number | boolean | string[] | null) => {
     setCurrentEntity({
       ...currentEntity,
       data: { ...currentEntity.data, [k]: v }
@@ -106,7 +113,7 @@ export function DashboardForm({
             </ComboboxTrigger>
             <ComboboxContent className='dark:bg-slate-800 dark:border-slate-700 dark:text-white'>
               {faculties.map(f => (
-                <ComboboxItem key={f.id} value={f.id } label={f.name}>
+                <ComboboxItem key={f.id} value={f.id} label={f.name}>
                   {f.name}
                 </ComboboxItem>
               ))}
@@ -134,7 +141,11 @@ export function DashboardForm({
               </p>
             </div>
             <Button asChild className='bg-blue-600 hover:bg-blue-700'>
-              <Link href='/maps/new' target='_blank' className='flex items-center gap-2'>
+              <Link
+                href='/maps/new'
+                target='_blank'
+                className='flex items-center gap-2'
+              >
                 Aller à la carte interactive <ArrowRight className='w-4 h-4' />
               </Link>
             </Button>
@@ -145,17 +156,25 @@ export function DashboardForm({
       return (
         <div className='space-y-4'>
           <div className='p-3 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 text-xs rounded border border-yellow-200 dark:border-yellow-800 flex gap-2 flex-wrap'>
-          <span>
-            <span className='font-semibold inline-flex px-1'><AlertCircle className='w-4 h-4 shrink-0' />Attention :  </span>
-            <span>Pour modifier la géométrie de la zone, veuillez utiliser
-              l&apos;outil carte. Ici, vous ne pouvez modifier que les
-              métadonnées.
+            <span>
+              <span className='font-semibold inline-flex px-1'>
+                <AlertCircle className='w-4 h-4 shrink-0' />
+                Attention :{' '}
+              </span>
+              <span>
+                Pour modifier la géométrie de la zone, veuillez utiliser
+                l&apos;outil carte. Ici, vous ne pouvez modifier que les
+                métadonnées.
+              </span>
             </span>
-          </span>
-            
-            <Link href={`/maps/${currentEntity.id}`} target='_blank' className={buttonVariants({
-              size: 'sm'
-            })}>
+
+            <Link
+              href={`/maps/${currentEntity.id}`}
+              target='_blank'
+              className={buttonVariants({
+                size: 'sm'
+              })}
+            >
               Aller à la carte interactive
             </Link>
           </div>
@@ -371,13 +390,31 @@ export function DashboardForm({
           <Input
             className='dark:bg-slate-800 dark:border-slate-700'
             type='number'
-            placeholder='Année'
-            value={
-              bk.publicationYear
-                ? new Date(bk.publicationYear).getFullYear()
-                : ''
-            }
-            onChange={e => updateData('publicationYear', Number(e.target.value))}
+            placeholder='Année de publication'
+            value={bk.publicationYear ?? ''}
+            onChange={e => {
+              const val = e.target.value
+              // Autorise vide ou nombre
+              if (val === '') {
+                updateData('publicationYear', null)
+                return
+              }
+              const num = Number(val)
+              if (!isNaN(num)) {
+                updateData('publicationYear', num)
+              }
+            }}
+            onBlur={() => {
+              // Vérifie à la sortie du champ
+              const currentYear = new Date().getFullYear()
+              if (bk.publicationYear && bk.publicationYear > currentYear) {
+                updateData('publicationYear', currentYear)
+                showToast(
+                  `L'année ne peut pas dépasser ${currentYear}`,
+                  'warning'
+                )
+              }
+            }}
           />
 
           <Combobox
@@ -389,7 +426,7 @@ export function DashboardForm({
             </ComboboxTrigger>
             <ComboboxContent className='dark:bg-slate-800 dark:border-slate-700'>
               {Object.values(BookType).map(t => (
-                <ComboboxItem key={t} value={t} >
+                <ComboboxItem key={t} value={t}>
                   {t}
                 </ComboboxItem>
               ))}
@@ -416,10 +453,9 @@ export function DashboardForm({
             <Combobox
               value={bk.studyAreaIds?.[0] || ''}
               onValueChange={v => updateData('studyAreaIds', [v])}
-              placeholder="Zone d'étude principale" 
             >
               <ComboboxTrigger className='dark:bg-slate-800 dark:border-slate-700'>
-                <ComboboxLabel placeholder="Selectionner une Zone d'étude"/>
+                <ComboboxValue placeholder="Selectionner une Zone d'étude" />
               </ComboboxTrigger>
               <ComboboxContent className='dark:bg-slate-800 dark:border-slate-700'>
                 {studyAreas.map(s => (

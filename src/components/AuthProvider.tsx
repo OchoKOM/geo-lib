@@ -1,7 +1,7 @@
 // Fichier : components/AuthProvider.tsx
 'use client';
 
-import { User } from 'lucia';
+import { SessionDatabaseAttributes } from '@/lib/auth';
 import * as React from 'react';
 
 // Définition simplifiée pour le rôle public
@@ -12,11 +12,11 @@ type PublicRole = 'INVITE' | 'READER' | 'AUTHOR' | 'LIBRARIAN' | 'ADMIN';
  * @description Structure des données exposées par le contexte.
  */
 interface AuthContextType {
-  // L'utilisateur est maintenant de type User (objet) ou null (déconnecté).
-  user: User | null; 
+  // L'utilisateur est maintenant de type SessionDatabaseAttributes (objet) ou null (déconnecté).
+  user: SessionDatabaseAttributes | null;
   isAuthenticated: boolean;
   // Le rôle est toujours défini (soit le rôle réel, soit 'INVITE')
-  role: PublicRole; 
+  role: PublicRole;
 }
 
 // -----------------------------------------------------------------------------
@@ -45,7 +45,7 @@ export function useAuth() {
 
 interface AuthProviderProps {
   // L'utilisateur initial est récupéré côté serveur et peut être null
-  initialUser: User | null; 
+  initialUser: SessionDatabaseAttributes | null;
   children: React.ReactNode;
 }
 
@@ -54,7 +54,7 @@ interface AuthProviderProps {
  */
 export function AuthProvider({ initialUser, children }: AuthProviderProps) {
   // On utilise l'état pour permettre une mise à jour future, même si initialUser peut être null.
-  const [user] = React.useState<User | null>(initialUser); 
+  const [user] = React.useState<SessionDatabaseAttributes | null>(initialUser);
 
   // Détermine si l'utilisateur est authentifié.
   const isAuthenticated = !!user;

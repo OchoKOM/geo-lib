@@ -15,19 +15,17 @@ import {
 /**
  * @typedef AuthActionState
  * @description Structure de l'état de retour d'une action d'authentification.
- * Utilisée pour communiquer les erreurs ou le succès au composant client.
  */
 type AuthActionState = {
     fields: { name: string; email: string; username: string };
     error: string | null;
     success?: boolean;
-    callbackUrl?: string;
 };
+
 type LoginActionState = {
     fields: { name: string; identifier: string };
     error: string | null;
     success?: boolean;
-    callbackUrl?: string;
 };
 
 
@@ -35,25 +33,20 @@ type LoginActionState = {
 // 1. ACTION D'INSCRIPTION (REGISTER)
 // -----------------------------------------------------------------------------
 
-/**
- * @action registerAction
- * @description Traite la soumission du formulaire d'inscription.
- * @param {AuthActionState} prevState L'état précédent du formulaire (utilisé par useFormState).
- * @param {FormData} formData Les données soumises par le formulaire.
- * @returns {Promise<AuthActionState>} Un objet contenant un message d'erreur ou un drapeau de succès.
- */
 export async function registerAction(
-    state: AuthActionState,
+    prevState: AuthActionState,
     formData: FormData
 ): Promise<AuthActionState> {
     
-    // 1. Récupération des données brutes
+    // 1. Récupération des données
     const name = formData.get('name');
     const email = formData.get('email');
     const username = formData.get('username');
     const password = formData.get('password');
+    // Récupération de l'URL de continuation depuis le champ caché
+    const continueUrl = formData.get('continue') as string | null;
 
-    // 2. Validation Zod côté Server Action (Double-vérification sécurisée)
+    // 2. Validation Zod
     const validatedFields = RegisterSchema.safeParse({
         name,
         email,
@@ -62,14 +55,16 @@ export async function registerAction(
     });
 
     if (!validatedFields.success) {
-        // Retourne la première erreur de validation trouvée
         const firstError = validatedFields.error.issues[0].message;
-        return { error: firstError, fields: { name: String(name), email: String(email), username: String(username) } };
+        return { 
+            error: firstError, 
+            fields: { name: String(name), email: String(email), username: String(username) } 
+        };
     }
     
     const { name: validatedName, email: validatedEmail, password: validatedPassword, username: validatedUsername } = validatedFields.data;
 
-    // 3. Appel à la logique métier
+    // 3. Logique métier
     const result = await registerUser({
         name: validatedName,
         email: validatedEmail,
@@ -77,15 +72,20 @@ export async function registerAction(
         username: validatedUsername
     });
 
-    // 4. Gestion de la réponse et des erreurs
+    // 4. Redirection
     if (result.success) {
-        // En cas de succès, on redirige l'utilisateur vers la page de connexion
-        // pour qu'il puisse finaliser la création de sa session.
-        redirect('/login?success=true');
+        // Si une URL de continuation valide existe et commence par '/' (sécurité), on l'utilise
+        if (continueUrl && continueUrl.startsWith('/')) {
+            redirect(continueUrl);
+        } else {
+            redirect('/profile'); // Redirection par défaut
+        }
     }
 
-    // Si registerUser renvoie une erreur (ex: email déjà utilisé)
-    return { error: result.error, fields: { name: String(name), email: String(email), username: String(username) } };
+    return { 
+        error: result.error, 
+        fields: { name: String(name), email: String(email), username: String(username) } 
+    };
 }
 
 
@@ -93,27 +93,19 @@ export async function registerAction(
 // 2. ACTION DE CONNEXION (LOGIN)
 // -----------------------------------------------------------------------------
 
-/**
- * @action loginAction
- * @description Traite la soumission du formulaire de connexion.
- * Inclut la gestion d'une URL de retour optionnelle (callbackUrl).
- * @param {AuthActionState} prevState L'état précédent du formulaire.
- * @param {FormData} formData Les données soumises par le formulaire (inclut email, password et callbackUrl).
- * @returns {Promise<LoginActionState>} Un objet contenant un message d'erreur.
- */
 export async function loginAction(
     prevState: LoginActionState,
     formData: FormData
 ): Promise<LoginActionState> {
     
-    // 1. Récupération des données brutes
+    // 1. Récupération des données
     const identifier = formData.get('identifier');
     const password = formData.get('password');
-    
-    // NOUVEAU : Récupération de l'URL de retour (souvent masquée dans le formulaire)
-    const callbackUrl = formData.get('callbackUrl');
+    // Récupération de l'URL de continuation (prioritaire sur callbackUrl)
+    const continueUrl = formData.get('continue') as string | null;
+    const callbackUrl = formData.get('callbackUrl') as string | null;
 
-    // 2. Validation Zod côté Server Action
+    // 2. Validation Zod
     const validatedFields = LoginSchema.safeParse({
         identifier,
         password,
@@ -121,40 +113,42 @@ export async function loginAction(
 
     if (!validatedFields.success) {
         const firstError = validatedFields.error.issues[0].message;
-        return { error: `Erreur de validation: ${firstError}`, fields: { name: '', identifier: String(identifier) } };
+        return { 
+            error: `Erreur de validation: ${firstError}`, 
+            fields: { name: '', identifier: String(identifier) } 
+        };
     }
     
     const { identifier: validatedIdentifier, password: validatedPassword } = validatedFields.data;
 
-
-    // 3. Appel à la logique métier
-    // Note: Le service loginUser gère l'authentification et retourne l'URL par défaut.
+    // 3. Logique métier
     const result = await loginUser({
         identifier: validatedIdentifier,
         password: validatedPassword
     });
 
-    // 4. Gestion de la réponse et des erreurs
+    // 4. Redirection
     if (result.success) {
-        let finalRedirectUrl = result.redirectUrl;
+        // Logique de priorité pour la redirection :
+        // 1. 'continue' (notre nouveau système explicite)
+        // 2. 'callbackUrl' (système legacy ou OAuth)
+        // 3. '/profile' (défaut)
+        
+        let finalRedirectUrl = '/profile';
 
-        // VÉRIFICATION DE LA REDIRECTION :
-        if (callbackUrl && typeof callbackUrl === 'string') {
-            // Sécurité: Valider que l'URL est relative pour prévenir les attaques de phishing.
-            // Si l'URL commence par un slash ('/'), on la priorise.
-            if (callbackUrl.startsWith('/')) {
-                finalRedirectUrl = callbackUrl;
-            }
+        if (continueUrl && continueUrl.startsWith('/')) {
+            finalRedirectUrl = continueUrl;
+        } else if (callbackUrl && callbackUrl.startsWith('/')) {
+            finalRedirectUrl = callbackUrl;
         }
 
-        if (finalRedirectUrl) {
-            // Redirection vers l'URL de retour ou l'URL par défaut basée sur le rôle.
-            redirect(finalRedirectUrl);
-        }
+        redirect(finalRedirectUrl);
     }
 
-    // Si loginUser renvoie une erreur (ex: email/mdp invalide)
-    return { error: result.error, fields: { name: '', identifier: String(identifier) } };
+    return { 
+        error: result.error, 
+        fields: { name: '', identifier: String(identifier) } 
+    };
 }
 
 
@@ -162,12 +156,6 @@ export async function loginAction(
 // 3. ACTION DE DÉCONNEXION (LOGOUT)
 // -----------------------------------------------------------------------------
 
-/**
- * @action logoutAction
- * @description Traite la déconnexion de l'utilisateur.
- * Elle appelle logoutUser qui invalide la session et redirige vers /login.
- */
-export async function logoutAction(): Promise<void> {
-    // Le service s'occupe de l'invalidation de session, de la suppression du cookie, et de la redirection finale.
-    await logoutUser();
+export async function logoutAction(continueUrl?: string): Promise<void> {
+    await logoutUser(continueUrl);
 }
