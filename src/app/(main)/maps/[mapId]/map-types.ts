@@ -27,6 +27,8 @@ export interface LayerConfig {
   id: string
   name: string
   type: GeometryMode
+  showLabels?: boolean 
+  labelProperty?: string 
   visible: boolean
   count: number
   style: LayerStyle
