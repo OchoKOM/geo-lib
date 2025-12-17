@@ -17,7 +17,7 @@ export default function SaveModal({
   onClose: (open: boolean) => void
   isSaving: boolean
   formData: { name: string, description: string }
-  setFormData: (val: any) => void
+  setFormData: (val: unknown) => void
   onSave: () => void
 }) {
      <AlertDialog open={open} onOpenChange={onClose}>

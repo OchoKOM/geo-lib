@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import prisma from '@/lib/prisma'
 import { getSession } from '@/lib/auth'
 import EditMapClient from './EditMapClient'
+import { ExtendedFeature } from './map-types'
 
 export default async function EditMapPage({ params }: { params: { mapId: string } }) {
   const session = await getSession()
@@ -58,6 +59,11 @@ export default async function EditMapPage({ params }: { params: { mapId: string 
       features: []
     }
   }
+
+  const filteredFeatures = initialGeoJson.features.filter((f:ExtendedFeature)=>!!f.geometry)
+
+  // Filtrer les features avec geometry et ignorer si sans geometry
+  initialGeoJson =  {...initialGeoJson, features: filteredFeatures}
 
   // 3. Transformation des données pour le client
   // On formate les livres pour un affichage simple

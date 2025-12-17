@@ -188,9 +188,9 @@ export const Sidebar = ({ stats }: SidebarProps) => (
         <p className='text-blue-100 text-sm mb-3'>
           Consultez le guide de recherche spatiale pour optimiser vos résultats.
         </p>
-        <button className='text-xs font-bold bg-white text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition'>
+        <Link href="/user-guide" className='text-xs font-bold bg-white text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition'>
           Voir le Guide
-        </button>
+        </Link>
       </div>
       <Compass className='absolute -bottom-4 -right-4 w-24 h-24 text-white opacity-10' />
     </div>
