@@ -242,9 +242,9 @@ export default function MapSidebar({
                         <div className='space-y-2'>
                             <Label>Nom de la Zone</Label>
                             <Input
-                            value={studyAreaName}
-                            onChange={e => setStudyAreaName(e.target.value)}
-                            required
+                              value={studyAreaName}
+                              onChange={e => setStudyAreaName(e.target.value)}
+                              required
                             />
                         </div>
                         <div className='space-y-2'>
