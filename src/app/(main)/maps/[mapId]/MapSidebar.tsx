@@ -83,52 +83,18 @@ export default function MapSidebar({
         <Tabs defaultValue='info' className='flex-1 flex flex-col h-full'>
           <div className='px-4 pt-4'>
             <TabsList className='w-full grid grid-cols-2'>
-              <TabsTrigger value='info'>
-                <BookIcon className='w-4 h-4 mr-2' />
-                Projet
-              </TabsTrigger>
               <TabsTrigger value='layers'>
                 <Layers className='w-4 h-4 mr-2' />
                 Couches
+              </TabsTrigger>
+              <TabsTrigger value='info'>
+                <BookIcon className='w-4 h-4 mr-2' />
+                Projet
               </TabsTrigger>
             </TabsList>
           </div>
 
           <div className='flex-1 overflow-y-auto p-4 h-full'>
-            {/* ONGLET INFO */}
-            <TabsContent value='info' className='space-y-4 m-0'>
-              <div className='space-y-2'>
-                <Label>Nom de la Zone</Label>
-                <Input
-                  value={studyAreaName}
-                  onChange={e => setStudyAreaName(e.target.value)}
-                  required
-                />
-              </div>
-              <div className='space-y-2'>
-                <Label>Description</Label>
-                <Textarea
-                  value={studyAreaDescription}
-                  onChange={e => setStudyAreaDescription(e.target.value)}
-                  rows={4}
-                />
-              </div>
-              <div className='mt-4 p-4 bg-muted/50 rounded-lg border'>
-                <h3 className='text-sm font-semibold mb-2'>Stats Rapides</h3>
-                <div className='grid grid-cols-2 gap-2 text-xs'>
-                  <div>Objets totaux: {features.length}</div>
-                  <div>
-                    Polygones: {features.filter(f => f.geometry.type.includes('Polygon')).length}
-                  </div>
-                  <div>
-                    Lignes: {features.filter(f => f.geometry.type.includes('LineString')).length}
-                  </div>
-                  <div>
-                    Points: {features.filter(f => f.geometry.type.includes('Point')).length}
-                  </div>
-                </div>
-              </div>
-            </TabsContent>
             {/* ONGLET COUCHES SIMPLE */}
             <TabsContent value='layers' className='space-y-4 m-0'>
               {activeLayers.map(layer => (
@@ -164,6 +130,40 @@ export default function MapSidebar({
               >
                 Gérer les couches
               </Button>
+            </TabsContent>
+            {/* ONGLET INFO */}
+            <TabsContent value='info' className='space-y-4 m-0'>
+              <div className='space-y-2'>
+                <Label>Nom de la Zone</Label>
+                <Input
+                  value={studyAreaName}
+                  onChange={e => setStudyAreaName(e.target.value)}
+                  required
+                />
+              </div>
+              <div className='space-y-2'>
+                <Label>Description</Label>
+                <Textarea
+                  value={studyAreaDescription}
+                  onChange={e => setStudyAreaDescription(e.target.value)}
+                  rows={4}
+                />
+              </div>
+              <div className='mt-4 p-4 bg-muted/50 rounded-lg border'>
+                <h3 className='text-sm font-semibold mb-2'>Stats Rapides</h3>
+                <div className='grid grid-cols-2 gap-2 text-xs'>
+                  <div>Objets totaux: {features.length}</div>
+                  <div>
+                    Polygones: {features.filter(f => f.geometry.type.includes('Polygon')).length}
+                  </div>
+                  <div>
+                    Lignes: {features.filter(f => f.geometry.type.includes('LineString')).length}
+                  </div>
+                  <div>
+                    Points: {features.filter(f => f.geometry.type.includes('Point')).length}
+                  </div>
+                </div>
+              </div>
             </TabsContent>
           </div>
           <div className='p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 mt-auto'>
