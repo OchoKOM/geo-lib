@@ -222,7 +222,7 @@ export default function MapSidebar({
                                         .map(([key, value]) => (
                                             <div key={key} className="flex flex-col border-t border-blue-200/50 dark:border-blue-800/50 pt-1 mt-1">
                                                 <span className="text-[10px] uppercase text-muted-foreground font-semibold">{key}</span>
-                                                <span className="break-words text-slate-700 dark:text-slate-300">
+                                                <span className="wrap-break-word text-slate-700 dark:text-slate-300">
                                                     {String(value)}
                                                 </span>
                                             </div>

@@ -7,13 +7,11 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { 
   MapPin, 
-  Loader2, 
-  BookOpen,
+  Loader2,
   Plus,
   Map as MapIcon,
   Search,
   Navigation,
-  X,
   ChevronLeft,
   ChevronRight,
   Circle,
@@ -162,6 +160,9 @@ export function MapListClient({
     const mapTypeIconHtml = renderToStaticMarkup(<MapIcon size={16} color='currentColor' />)
     const btnClass = buttonVariants({variant: "outline", size: "sm"})
 
+    // Map to track if popup was opened by click
+    const openedByClickMap = new Map<L.Marker, boolean>()
+
     maps.forEach((area) => {
       // 1. Couleur consistante
       const color = getColorForId(area.id)
@@ -201,6 +202,8 @@ export function MapListClient({
         .bindPopup(popupContent)
         .addTo(markers)
 
+      openedByClickMap.set(marker, false)
+
       marker.on('popupopen', () => {
         const popupElement = marker.getPopup()?.getElement()
         if (popupElement) {
@@ -212,6 +215,49 @@ export function MapListClient({
           }
         }
       })
+
+      let closeTimeout: NodeJS.Timeout | null = null;
+      let isClicking = false;
+
+      marker.on('mouseenter', () => {
+        if (!openedByClickMap.get(marker)) {
+          marker.openPopup();
+        }
+        if (closeTimeout) {
+          clearTimeout(closeTimeout);
+          closeTimeout = null;
+        }
+      });
+
+      marker.on('mousedown', () => {
+        isClicking = true;
+      });
+
+      marker.on('mouseout', () => {
+        if (!openedByClickMap.get(marker) && !isClicking) {
+          closeTimeout = setTimeout(() => {
+            marker.closePopup();
+          }, 300); // 300ms delay before closing
+        }
+      });
+
+      marker.on('click', () => {
+        isClicking = false;
+        if (closeTimeout) {
+          clearTimeout(closeTimeout);
+          closeTimeout = null;
+        }
+        openedByClickMap.set(marker, true);
+        marker.openPopup();
+      });
+
+      marker.on('popupclose', () => {
+        openedByClickMap.set(marker, false);
+        if (closeTimeout) {
+          clearTimeout(closeTimeout);
+          closeTimeout = null;
+        }
+      });
     })
 
     markers.addTo(map)
@@ -252,7 +298,7 @@ export function MapListClient({
     <div className="relative w-full flex-1 bg-slate-100 dark:bg-slate-900 overflow-hidden flex flex-col md:flex-row">
       
       {/* PANEL DE RECHERCHE ET LÉGENDE */}
-      <div className="absolute top-4 left-4 bottom-auto md:bottom-4 w-[calc(100%-2rem)] md:w-80 z-[400] bg-white/95 dark:bg-slate-900/95 backdrop-blur shadow-xl rounded-lg border border-slate-200 dark:border-slate-800 flex flex-col max-h-[60vh] md:max-h-[calc(100%-2rem)] transition-all">
+      <div className="absolute top-4 left-4 bottom-auto md:bottom-4 w-[calc(100%-2rem)] md:w-80 z-400 bg-white/95 dark:bg-slate-900/95 backdrop-blur shadow-xl rounded-lg border border-slate-200 dark:border-slate-800 flex flex-col max-h-[60vh] md:max-h-[calc(100%-2rem)] transition-all">
         
         {/* En-tête recherche */}
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col gap-3">
@@ -287,7 +333,7 @@ export function MapListClient({
                   <div className="flex items-start gap-2">
                     {/* INDICATEUR DE COULEUR SYNCHRONISÉ */}
                     <Circle 
-                      className="w-3 h-3 mt-1 flex-shrink-0" 
+                      className="w-3 h-3 mt-1 shrink-0" 
                       fill={color} 
                       color={color} 
                     />
