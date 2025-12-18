@@ -114,7 +114,7 @@ export default async function HomePage({ searchParams }: PageProps) {
     }
   })
   return (
-    <main className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+    <main className="min-h-full relative bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
 
       {/* Composant Client (Recherche & Filtres, inclut les boutons de vue) */}
       <SearchSection />

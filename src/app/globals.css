@@ -168,3 +168,9 @@ html{
 .dark .leaflet-control-attribution {
   filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
 }
+.dark .leaflet-popup-content-wrapper{
+  @apply bg-card;
+}
+.dark .leaflet-popup-content-wrapper h3{
+  @apply text-foreground;
+}

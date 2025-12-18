@@ -39,7 +39,7 @@ export default function RootLayout({
     <html lang="fr" suppressHydrationWarning >
       <body
       >
-        <main>
+        <main className="min-h-screen">
           <ToastContainer />
           <ThemeProvider>
           {children}

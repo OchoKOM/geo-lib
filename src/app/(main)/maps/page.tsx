@@ -47,9 +47,9 @@ export default async function MapsIndexPage() {
   }))
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6 space-y-6">
+    <div className="h-[calc(100vh-64px)] relative bgbackground flex flex-col">
       {/* En-tête de la page */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="flex flex-wrap md:flex-row items-start md:items-center justify-between gap-4 p-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
             <MapIcon className="w-6 h-6 text-blue-600" />

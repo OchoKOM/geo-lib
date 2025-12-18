@@ -1,6 +1,6 @@
 'use client'
 
-import React, { ComponentType, ReactNode, SVGProps, useState } from 'react'
+import React, { ComponentType, SVGProps, useState } from 'react'
 import { 
   BookOpen, 
   Map as MapIcon, 
@@ -11,19 +11,22 @@ import {
   HelpCircle, 
   ChevronDown, 
   ChevronRight, 
-  Menu,
   UserPlus,
   LogIn,
   Upload,
   Library,
   AlertCircle,
   CheckCircle2,
-  ArrowRight
+  ArrowRight,
+  FileText,
+  MousePointer2,
+  Globe,
+  Layers
 } from 'lucide-react'
 
 // --- Composants UI Réutilisables ---
 
-const SectionTitle = ({ children, icon: Icon }: { children: React.ReactNode; icon?: ComponentType<SVGProps<SVGSVGElement>> }) => (
+const SectionTitle = ({ children, icon: Icon }: { children: React.ReactNode; icon?: ComponentType<SVGProps<SVGSVGElement>>  }) => (
   <h2 className="flex items-center gap-3 text-2xl md:text-3xl font-bold text-slate-800 dark:text-white mb-8 pb-4 border-b border-slate-200 dark:border-slate-700">
     {Icon && <Icon className="w-8 h-8 text-blue-600" />}
     {children}
@@ -69,6 +72,81 @@ const AccordionItem = ({ question, children }: { question: string; children: Rea
     </div>
   )
 }
+
+// --- Composants Visuels Spécifiques (Diagrammes) ---
+
+const MapSimulation = () => (
+  <div className="bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden relative border border-slate-300 dark:border-slate-600 aspect-video w-full group">
+    {/* Fond de carte simplifié */}
+    <div className="absolute inset-0 opacity-30 dark:opacity-20" 
+         style={{ backgroundImage: 'radial-gradient(circle, #94a3b8 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
+    </div>
+    
+    {/* Formes géographiques (Rivières/Zones) */}
+    <svg className="absolute inset-0 w-full h-full pointer-events-none" xmlns="http://www.w3.org/2000/svg">
+       <path d="M0,80 Q50,90 100,50 T200,80 T300,120 T400,100" fill="none" stroke="#60a5fa" strokeWidth="4" className="opacity-60" />
+       <path d="M250,0 Q260,50 300,80" fill="none" stroke="#60a5fa" strokeWidth="3" className="opacity-60" />
+    </svg>
+
+    {/* Marqueurs interactifs */}
+    <div className="absolute top-1/4 left-1/4 animate-bounce duration-2000">
+        <div className="relative group/marker cursor-pointer">
+            <MapIcon className="w-8 h-8 text-red-500 drop-shadow-lg" />
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-white dark:bg-slate-900 p-2 rounded shadow-xl text-xs hidden group-hover/marker:block z-10 border border-slate-200 dark:border-slate-700">
+                <p className="font-bold text-slate-800 dark:text-white">Géologie du Katanga</p>
+                <p className="text-slate-500">Thèse - 2023</p>
+            </div>
+        </div>
+    </div>
+
+    <div className="absolute bottom-1/3 right-1/3 animate-bounce duration-2500">
+        <div className="relative group/marker cursor-pointer">
+            <MapIcon className="w-8 h-8 text-blue-500 drop-shadow-lg" />
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-white dark:bg-slate-900 p-2 rounded shadow-xl text-xs hidden group-hover/marker:block z-10 border border-slate-200 dark:border-slate-700">
+                <p className="font-bold text-slate-800 dark:text-white">Hydrologie Fleuve Congo</p>
+                <p className="text-slate-500">Mémoire - 2022</p>
+            </div>
+        </div>
+    </div>
+    
+    {/* Interface de contrôle simulée */}
+    <div className="absolute top-2 right-2 bg-white dark:bg-slate-900 p-1 rounded shadow border border-slate-200 dark:border-slate-700 flex flex-col gap-1">
+        <div className="w-6 h-6 bg-slate-100 dark:bg-slate-700 rounded flex items-center justify-center text-slate-500 text-xs font-bold">+</div>
+        <div className="w-6 h-6 bg-slate-100 dark:bg-slate-700 rounded flex items-center justify-center text-slate-500 text-xs font-bold">-</div>
+    </div>
+
+    {/* Légende */}
+    <div className="absolute bottom-2 left-2 bg-white/90 dark:bg-slate-900/90 p-2 rounded shadow backdrop-blur-sm border border-slate-200 dark:border-slate-700 text-xs">
+        <div className="flex items-center gap-2 mb-1"><span className="w-2 h-2 rounded-full bg-red-500"></span> Mines</div>
+        <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-500"></span> Hydrologie</div>
+    </div>
+  </div>
+)
+
+const WorkflowDiagram = () => (
+  <div className="w-full overflow-x-auto pb-4">
+    <div className="flex items-center justify-between min-w-[600px] relative">
+        {/* Ligne de connexion */}
+        <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-200 dark:bg-slate-700 -z-10 transform -translate-y-1/2 rounded-full"></div>
+        
+        {[
+            { title: "Création", icon: FileText, desc: "Saisir métadonnées" },
+            { title: "Géolocalisation", icon: Globe, desc: "Définir la zone" },
+            { title: "Upload", icon: Upload, desc: "Fichier PDF" },
+            { title: "Publication", icon: CheckCircle2, desc: "Validation finale" }
+        ].map((step, idx) => (
+            <div key={idx} className="flex flex-col items-center bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm w-40 text-center z-10 hover:scale-105 transition-transform">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 
+                    ${idx === 3 ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'}`}>
+                    <step.icon className="w-6 h-6" />
+                </div>
+                <h4 className="font-bold text-slate-800 dark:text-white text-sm">{step.title}</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{step.desc}</p>
+            </div>
+        ))}
+    </div>
+  </div>
+)
 
 // --- Page Principale ---
 
@@ -130,8 +208,6 @@ export default function GuidePage() {
                 {item.label}
               </button>
             ))}
-            
-            {/* Version Mobile du menu (affichée en haut sur mobile via CSS si besoin, mais ici simple sidebar desktop) */}
           </div>
         </aside>
 
@@ -187,7 +263,7 @@ export default function GuidePage() {
                 <div key={index} className="relative pl-8">
                   <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 border-4 border-white dark:border-slate-950 shadow-sm" />
                   <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-4">{item.title}</h3>
-                  <Card className="!p-4">
+                  <Card className="p-4!">
                     <ul className="space-y-3">
                       {item.steps.map((step, idx) => (
                         <li key={idx} className="flex items-start gap-3 text-slate-600 dark:text-slate-300">
@@ -202,42 +278,44 @@ export default function GuidePage() {
             </div>
           </section>
 
-          {/* 3. Pour les Lecteurs */}
+          {/* 3. Pour les Lecteurs (AVEC CARTE INTERACTIVE SIMULÉE) */}
           <section id="readers" className="scroll-mt-28">
             <SectionTitle icon={Search}>Pour les Lecteurs</SectionTitle>
             
             <div className="space-y-8">
               {/* Feature Highlight: Recherche & Carte */}
-              <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 text-white shadow-xl relative overflow-hidden group">
-                <div className="absolute right-0 top-0 w-64 h-64 bg-blue-500 rounded-full blur-[100px] opacity-20 group-hover:opacity-30 transition-opacity" />
+              <div className="bg-linear-to-br from-slate-800 to-slate-900 rounded-2xl p-8 shadow-xl relative overflow-hidden group border border-slate-700">
+                <div className="absolute right-0 top-0 w-64 h-64 bg-blue-500 rounded-full blur-[100px] opacity-10 group-hover:opacity-20 transition-opacity" />
                 
-                <div className="relative z-10 grid md:grid-cols-2 gap-8 items-center">
-                  <div>
+                <div className="grid lg:grid-cols-2 gap-12 items-center relative z-10">
+                  <div className="text-white">
                     <Badge color="blue">Fonctionnalité Phare</Badge>
                     <h3 className="text-2xl font-bold mt-4 mb-4">Recherche Géospatiale</h3>
-                    <p className="text-slate-300 mb-6">
-                      Ne cherchez pas seulement par titre. Visualisez les documents sur une carte interactive pour découvrir les recherches effectuées dans votre région d&apos;intérêt.
+                    <p className="text-slate-300 mb-6 leading-relaxed">
+                      L&apos;outil de carte interactive est au cœur de GeoLib. Il vous permet d&apos;explorer les documents non pas par mots-clés, mais par zone géographique.
                     </p>
-                    <ul className="space-y-2 text-sm text-slate-300">
-                      <li className="flex items-center gap-2"><MapIcon className="w-4 h-4 text-blue-400" /> Marqueurs interactifs sur la carte</li>
-                      <li className="flex items-center gap-2"><Settings className="w-4 h-4 text-blue-400" /> Filtres par Année, Type et Faculté</li>
+                    <ul className="space-y-3 text-sm text-slate-300">
+                      <li className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded bg-blue-500/20 flex items-center justify-center text-blue-400"><MousePointer2 className="w-4 h-4"/></div>
+                        <span><strong>Survolez</strong> les marqueurs pour un aperçu rapide</span>
+                      </li>
+                      <li className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded bg-blue-500/20 flex items-center justify-center text-blue-400"><Layers className="w-4 h-4"/></div>
+                        <span><strong>Filtrez</strong> les résultats visibles sur la carte</span>
+                      </li>
+                      <li className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded bg-blue-500/20 flex items-center justify-center text-blue-400"><MapIcon className="w-4 h-4"/></div>
+                        <span><strong>Zoomez</strong> pour découvrir des études locales précises</span>
+                      </li>
                     </ul>
                   </div>
                   
-                  {/* Mockup visuel de la carte */}
-                  <div className="bg-white/10 backdrop-blur-md rounded-lg p-4 border border-white/20">
-                    <div className="flex items-center gap-2 mb-3 border-b border-white/10 pb-2">
-                        <div className="w-3 h-3 rounded-full bg-red-500"/>
-                        <div className="w-3 h-3 rounded-full bg-yellow-500"/>
-                        <div className="w-3 h-3 rounded-full bg-green-500"/>
+                  {/* COMPOSANT VISUEL DE CARTE */}
+                  <div className="relative">
+                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs py-1 px-3 rounded-full border border-slate-600 shadow-sm z-20">
+                        Aperçu de l&apos;interface
                     </div>
-                    <div className="space-y-2">
-                        <div className="h-24 bg-blue-500/20 rounded w-full flex items-center justify-center border border-blue-500/30">
-                            <MapIcon className="w-8 h-8 text-blue-300" />
-                        </div>
-                        <div className="h-4 bg-slate-400/20 rounded w-3/4"></div>
-                        <div className="h-4 bg-slate-400/20 rounded w-1/2"></div>
-                    </div>
+                    <MapSimulation />
                   </div>
                 </div>
               </div>
@@ -249,58 +327,63 @@ export default function GuidePage() {
                     <BookOpen className="w-5 h-5 text-blue-600" /> Consultation
                   </h4>
                   <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                    Cliquez sur un résultat pour voir le résumé, les métadonnées et télécharger le PDF si disponible.
+                    Chaque page de document détaille les auteurs, la faculté et offre un bouton de téléchargement direct.
                   </p>
-                  <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded text-xs text-slate-500">
-                    Astuce : Vérifiez les informations géographiques pour voir les coordonnées exactes.
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded text-xs text-slate-500 border border-slate-100 dark:border-slate-700">
+                    Les documents sont classés par type : TFC, Mémoire, Thèse, Article.
                   </div>
                 </Card>
 
                 <Card>
                   <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
-                    <Library className="w-5 h-5 text-blue-600" /> Emprunt & Compte
+                    <Library className="w-5 h-5 text-blue-600" /> Emprunt Numérique
                   </h4>
                   <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                    Vérifiez la disponibilité et cliquez sur &quot;Emprunter&quot;. Suivez vos emprunts et gérez vos alertes dans votre profil.
+                    Si un document physique est disponible en bibliothèque, vous pouvez réserver votre exemplaire via l&apos;application.
                   </p>
-                  <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded text-xs text-slate-500">
-                    Astuce : Configurez vos préférences de notification pour ne jamais rater un retour.
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded text-xs text-slate-500 border border-slate-100 dark:border-slate-700">
+                    Durée standard d&apos;emprunt : 14 jours (renouvelable).
                   </div>
                 </Card>
               </div>
             </div>
           </section>
 
-          {/* 4. Pour les Auteurs */}
+          {/* 4. Pour les Auteurs (AVEC DIAGRAMME DE WORKFLOW) */}
           <section id="authors" className="scroll-mt-28">
             <SectionTitle icon={UserPlus}>Pour les Auteurs</SectionTitle>
             
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                <div className="grid md:grid-cols-2">
-                    <div className="p-8 space-y-6">
-                        <h3 className="text-xl font-bold">Processus de Publication</h3>
-                        <div className="space-y-4">
-                            {[
-                                { num: 1, text: "Accédez au tableau de bord auteur" },
-                                { num: 2, text: "Remplissez les métadonnées (Titre, Résumé, Faculté)" },
-                                { num: 3, text: "Dessinez la zone d'étude sur la carte ou importez un GeoJSON" },
-                                { num: 4, text: "Téléversez le fichier PDF et validez" }
-                            ].map((step) => (
-                                <div key={step.num} className="flex items-center gap-4">
-                                    <span className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-sm shrink-0">
-                                        {step.num}
-                                    </span>
-                                    <p className="text-slate-700 dark:text-slate-300 font-medium">{step.text}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="bg-slate-50 dark:bg-slate-800 p-8 flex flex-col justify-center items-center text-center">
-                        <Upload className="w-16 h-16 text-slate-300 mb-4" />
-                        <h4 className="font-bold text-slate-700 dark:text-slate-200">Gestion de Profil</h4>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-xs">
-                            Ajoutez une biographie, une photo et gérez vos publications existantes pour maintenir votre portfolio académique à jour.
+            <div className="space-y-8">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8">
+                    <div className="text-center mb-8">
+                        <h3 className="text-xl font-bold mb-2">Processus de Publication</h3>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm max-w-lg mx-auto">
+                            De la soumission à la validation, GeoLib simplifie le partage de vos connaissances.
                         </p>
+                    </div>
+
+                    {/* COMPOSANT VISUEL DE WORKFLOW */}
+                    <div className="mb-8 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
+                        <WorkflowDiagram />
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-8 text-sm">
+                        <div>
+                            <h4 className="font-bold flex items-center gap-2 mb-2 text-slate-800 dark:text-white">
+                                <Globe className="w-4 h-4 text-blue-500" /> Géolocalisation
+                            </h4>
+                            <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+                                L&apos;étape la plus importante. Vous pouvez dessiner un polygone sur la carte pour délimiter votre zone d&apos;étude (ex: &quot;Province du Lualaba&quot;) ou importer un fichier <code>.geojson</code> si vous avez des données SIG précises.
+                            </p>
+                        </div>
+                        <div>
+                            <h4 className="font-bold flex items-center gap-2 mb-2 text-slate-800 dark:text-white">
+                                <FileText className="w-4 h-4 text-blue-500" /> Métadonnées Riches
+                            </h4>
+                            <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+                                Assurez-vous de bien sélectionner votre Faculté et Département. Ces tags sont cruciaux pour que vos pairs retrouvent votre travail via les filtres académiques.
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -315,19 +398,14 @@ export default function GuidePage() {
                     <SectionTitle icon={Library}>Bibliothécaires</SectionTitle>
                     <div className="space-y-4">
                         <Card className="border-l-4 border-l-purple-500">
-                            <h4 className="font-bold text-purple-700 dark:text-purple-400 mb-2">Catalogue</h4>
-                            <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-1 list-disc list-inside">
-                                <li>Importation en masse de documents</li>
-                                <li>Validation des soumissions d&apos;auteurs</li>
-                                <li>Correction des métadonnées et catégories</li>
-                            </ul>
-                        </Card>
-                        <Card className="border-l-4 border-l-purple-500">
-                            <h4 className="font-bold text-purple-700 dark:text-purple-400 mb-2">Gestion des Emprunts</h4>
-                            <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-1 list-disc list-inside">
-                                <li>Validation des demandes</li>
-                                <li>Marquage des retours</li>
-                                <li>Gestion des pénalités et retards</li>
+                            <h4 className="font-bold text-purple-700 dark:text-purple-400 mb-2">Catalogue & Validation</h4>
+                            <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                                Votre rôle principal est de garantir la qualité des données.
+                            </p>
+                            <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-1 list-disc list-inside bg-purple-50 dark:bg-purple-900/10 p-3 rounded">
+                                <li>Vérifier l&apos;exactitude des zones géographiques</li>
+                                <li>Valider les soumissions en attente</li>
+                                <li>Corriger les catégories mal attribuées</li>
                             </ul>
                         </Card>
                     </div>
@@ -338,21 +416,21 @@ export default function GuidePage() {
                     <SectionTitle icon={ShieldCheck}>Administrateurs</SectionTitle>
                     <div className="bg-amber-50 dark:bg-amber-900/10 rounded-xl p-6 border border-amber-100 dark:border-amber-900/30 h-full">
                         <p className="text-sm text-amber-800 dark:text-amber-200 mb-6 italic">
-                            Les administrateurs possèdent tous les droits des autres rôles, plus :
+                            Supervision globale et configuration technique.
                         </p>
                         <div className="grid grid-cols-1 gap-4">
                             <div className="flex items-start gap-3">
                                 <Settings className="w-5 h-5 text-amber-600 mt-1" />
                                 <div>
-                                    <h5 className="font-bold text-slate-800 dark:text-slate-200">Configuration Système</h5>
-                                    <p className="text-xs text-slate-600 dark:text-slate-400">Limites d&apos;emprunt, délais, maintenance DB, mises à jour.</p>
+                                    <h5 className="font-bold text-slate-800 dark:text-slate-200">Système</h5>
+                                    <p className="text-xs text-slate-600 dark:text-slate-400">Maintenance DB, Logs système, Paramètres globaux d&apos;application.</p>
                                 </div>
                             </div>
                             <div className="flex items-start gap-3">
                                 <Users className="w-5 h-5 text-amber-600 mt-1" />
                                 <div>
-                                    <h5 className="font-bold text-slate-800 dark:text-slate-200">Gestion Utilisateurs & Paiements</h5>
-                                    <p className="text-xs text-slate-600 dark:text-slate-400">Rôles, blocage de comptes, configuration des tarifs d&apos;abonnement.</p>
+                                    <h5 className="font-bold text-slate-800 dark:text-slate-200">Utilisateurs</h5>
+                                    <p className="text-xs text-slate-600 dark:text-slate-400">Attribution des rôles (Bibliothécaire, Admin), modération des comptes.</p>
                                 </div>
                             </div>
                         </div>
@@ -405,7 +483,7 @@ export default function GuidePage() {
       <footer className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-8 mt-12">
         <div className="container mx-auto px-4 text-center text-slate-500 dark:text-slate-400 text-sm">
           <p>© {new Date().getFullYear()} GeoLib. Tous droits réservés.</p>
-          <p className="mt-2">Guide mis à jour régulièrement. Dernière mise à jour : Décembre 2025</p>
+          <p className="mt-2">Guide mis à jour régulièrement. Dernière mise à jour : Décembre 2024</p>
         </div>
       </footer>
     </div>
