@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import L from 'leaflet'
@@ -71,8 +71,6 @@ export function MapListClient({
   // Ref pour stocker le timer du debounce
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [isPending, startTransition] = useTransition()
   const [isMapLoading, setIsMapLoading] = useState(true)
   const [isNavigating, setIsNavigating] = useState(false) // Nouvel état pour la navigation vers détail
   const [isMobileListOpen, setIsMobileListOpen] = useState(false) // État pour plier/déplier sur mobile
@@ -87,9 +85,7 @@ export function MapListClient({
   // Cette fonction centralise la navigation pour gérer le loader
   const handleNavigateToDetail = (id: string) => {
     setIsNavigating(true)
-    startTransition(() => {
-      router.push(`/maps/${id}`)
-    })
+    router.push(`/maps/${id}`)
   }
 
   // --- GESTION DE LA RECHERCHE (DEBOUNCE NATIF) ---
@@ -101,7 +97,6 @@ export function MapListClient({
 
     // 2. On démarre un nouveau timer de 300ms
     searchTimeoutRef.current = setTimeout(() => {
-      startTransition(() => {
         const params = new URLSearchParams(searchParams)
         if (term) {
           params.set('q', term)
@@ -111,16 +106,13 @@ export function MapListClient({
         params.set('page', '1') // Reset page on search
         router.replace(`${pathname}?${params.toString()}`)
       })
-    }, 300)
   }
 
   // --- GESTION DE LA PAGINATION ---
   const handlePageChange = (newPage: number) => {
-    startTransition(() => {
       const params = new URLSearchParams(searchParams)
       params.set('page', newPage.toString())
       router.push(`${pathname}?${params.toString()}`)
-    })
   }
 
   // --- NETTOYAGE ---
@@ -224,9 +216,8 @@ export function MapListClient({
         linkElement.addEventListener('click', (event) => {
           event.preventDefault()
           event.stopPropagation()
-          startTransition(() => {
-            router.push(`/maps/${area.id}`)
-          })
+          setIsNavigating(true)
+          router.push(`/maps/${area.id}`);
         })
       }
 
