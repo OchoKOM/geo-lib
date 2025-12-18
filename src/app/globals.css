@@ -168,9 +168,21 @@ html{
 .dark .leaflet-control-attribution {
   filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
 }
-.dark .leaflet-popup-content-wrapper{
+.dark .leaflet-popup-content-wrapper,  .dark .leaflet-popup-tip{
   @apply bg-card;
 }
 .dark .leaflet-popup-content-wrapper h3{
   @apply text-foreground;
+}
+
+/* Custom map pin icon positioning */
+.custom-map-pin {
+  position: relative;
+}
+
+.custom-map-pin svg {
+  position: absolute;
+  inset: 0;
+
+  @apply animate-bounce duration-2000;
 }

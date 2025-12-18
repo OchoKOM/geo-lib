@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { 
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { MapPinIcon } from '@/components/MapPinIcon'
 
 // --- TYPES ---
 interface MapItem {
@@ -30,7 +32,9 @@ interface MapItem {
 export function MapListClient({ maps }: { maps: MapItem[] }) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<L.Map | null>(null)
+  const markersRef = useRef<L.FeatureGroup | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
     // Nettoyage au démontage
@@ -55,42 +59,63 @@ export function MapListClient({ maps }: { maps: MapItem[] }) {
     // 2. Ajout du fond de carte (CartoDB Light pour un look propre)
     L.tileLayer(
       'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      { 
+      {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        maxZoom: 19 
+        maxZoom: 19
       }
     ).addTo(map)
 
     mapInstanceRef.current = map
 
-    // 3. Création de l'icône personnalisée pour les marqueurs
-    // On utilise une divIcon pour pouvoir styliser en CSS si besoin, ou on reste sur le défaut
-    // Ici on va corriger le problème fréquent des icônes Leaflet par défaut dans Next.js
-    const DefaultIcon = L.icon({
-        iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
-        shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
-    });
-    L.Marker.prototype.options.icon = DefaultIcon;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsLoading(false)
+
+  }, [])
+
+  // Separate useEffect for updating markers when maps data changes
+  useEffect(() => {
+    if (!mapInstanceRef.current) return
+
+    const map = mapInstanceRef.current
+
+    // 3. Création d'un tableau de couleurs pour randomiser
+    const colors = ['orange', 'red', 'green', 'yellow', 'purple', 'pink', 'brown'];
+
+    // Fonction pour obtenir une couleur aléatoire
+    const getRandomColor = () => colors[Math.floor(Math.random() * colors.length)];
 
     // 4. Ajout des marqueurs pour chaque zone
+    // Clear existing markers if any
+    if (markersRef.current) {
+      map.removeLayer(markersRef.current)
+    }
+
     const markers = L.featureGroup()
-      const books = renderToStaticMarkup(
-        <BookOpen size={16} color="blue" />
-      );
-      const mapHtml = renderToStaticMarkup(
-        <Map size={16} color='slate' />
-      )
-      // Création du contenu HTML de la popup
-      const styles = buttonVariants({variant: "outline"})
+    markersRef.current = markers
+
+    const books = renderToStaticMarkup(
+      <BookOpen size={16} color="currentColor" />
+    );
+    const mapHtml = renderToStaticMarkup(
+      <Map size={16} color='currentColor' />
+    )
+    // Création du contenu HTML de la popup
+    const styles = buttonVariants({variant: "outline"})
 
     maps.forEach((area) => {
-      const link = renderToStaticMarkup(
-        (<Link href={`/maps/${area.id}`} className={styles}  >Voir la zone</Link>)
+      // Création d'une icône personnalisée avec couleur aléatoire pour chaque marqueur
+      const randomColor = getRandomColor();
+      const customIconHtml = renderToStaticMarkup(
+        <MapPinIcon size="32px" color={randomColor} pinColor="#155dfc" />
       );
+      const customIcon = L.divIcon({
+        html: customIconHtml,
+        className: 'custom-map-pin',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16], // Centre de l'icône sur la coordonnée
+        popupAnchor: [0, -16],
+      });
+
       const popupContent = `
         <div class="p-1 min-w-[200px]">
           <h3 class="font-bold text-sm mb-1 text-slate-900 dark:text-white">${area.name}</h3>
@@ -102,16 +127,29 @@ export function MapListClient({ maps }: { maps: MapItem[] }) {
               <span class="text-primary">${books}</span> <strong>${area.bookCount}</strong> doc${area.bookCount > 1 ? 's' : ''}
             </span>
             <span style="display:flex; align-items:center; gap:4px;">
-              <span class="text-orange-500">${mapHtml}</span> ${area.geometryType}
+              <span class="text-green-500">${mapHtml}</span> ${area.geometryType}
             </span>
           </div>
-          ${link}
+          <button class="popup-link ${styles}">Voir la zone</button>
         </div>
-      `
+      `;
 
-      const marker = L.marker([area.centerLat, area.centerLng])
+
+      const marker = L.marker([area.centerLat, area.centerLng], { icon: customIcon })
         .bindPopup(popupContent)
         .addTo(markers)
+
+      marker.on('popupopen', () => {
+        const popupElement = marker.getPopup()?.getElement()
+        if (popupElement) {
+          const linkElement = popupElement.querySelector('.popup-link')
+          if (linkElement) {
+            linkElement.addEventListener('click', () => {
+              router.push(`/maps/${area.id}`)
+            })
+          }
+        }
+      })
     })
 
     // 5. Ajouter le groupe de marqueurs à la carte
@@ -119,13 +157,14 @@ export function MapListClient({ maps }: { maps: MapItem[] }) {
 
     // 6. Ajuster la vue pour englober tous les marqueurs (si on a des zones)
     if (maps.length > 0) {
-      map.fitBounds(markers.getBounds(), { padding: [50, 50] })
+      try {
+        map.fitBounds(markers.getBounds(), { padding: [50, 50] })
+      } catch (error) {
+        console.warn('Could not fit bounds, possibly due to invalid marker positions:', error)
+      }
     }
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsLoading(false)
-
-  }, [maps])
+  }, [maps, router])
 
   // --- RENDU : Gestion du cas vide ---
   if (maps.length === 0) {
@@ -166,7 +205,7 @@ export function MapListClient({ maps }: { maps: MapItem[] }) {
               <h4 className="font-bold text-sm">Explorateur Géographique</h4>
             </div>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Cliquez sur un marqueur bleu pour voir les détails de la zone et accéder aux documents associés.
+              Cliquez sur un marqueur pour voir les détails de la zone et accéder aux documents associés.
             </p>
             <div className="mt-3 text-xs font-medium text-slate-400">
               {maps.length} zones répertoriées

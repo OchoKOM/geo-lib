@@ -1,7 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 // Suppression de l'importation de 'react-dom/server' pour résoudre l'erreur de build.
 // Next.js gère le rendu du composant retourné par cette fonction.
-import { MapPinIcon, MapPinIconProps } from '@/components/MapPinIcon'; // Assurez-vous que le chemin est correct et que MapPinIcon.tsx existe
+import { MapPinIconProps } from '@/components/MapPinIcon'; // Assurez-vous que le chemin est correct et que MapPinIcon.tsx existe
 
 /**
  * @function GET

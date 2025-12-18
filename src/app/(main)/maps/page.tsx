@@ -39,8 +39,8 @@ export default async function MapsIndexPage() {
     name: area.name,
     description: area.description,
     geometryType: area.geometryType,
-    centerLat: area.centerLat ?? -4.4419, // Fallback Kinshasa
-    centerLng: area.centerLng ?? 15.2663,
+    centerLat: (area.centerLat && area.centerLat !== 0) ? area.centerLat : -4.4419, // Fallback Kinshasa if null or 0
+    centerLng: (area.centerLng && area.centerLng !== 0) ? area.centerLng : 15.2663,
     geojsonUrl: area.geojsonFile?.url || null,
     bookCount: area._count.books,
     createdAt: area.createdAt.toISOString() // Sérialisation des dates pour le client
