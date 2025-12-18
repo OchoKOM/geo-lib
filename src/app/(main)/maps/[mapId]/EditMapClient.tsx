@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useEffect, useRef, useState, useMemo } from 'react'
+import { useActionState, useEffect, useRef, useState, useMemo, SetStateAction } from 'react'
 import { updateStudyArea, createStudyAreaFromLayer, getAvailableStudyAreas } from '../actions'
 import {
   MapIcon,
@@ -31,6 +31,7 @@ import LayerManagerDialog from './LayerManagerDialog'
 import AttributeTableDialog from './AttributeTableDialog'
 import MapSidebar from './MapSidebar'
 import SaveLayerDialog from './SaveLayerDialog'
+import kyInstance from '@/lib/ky'
 
 // Import Leaflet Draw uniquement côté client
 if (typeof window !== 'undefined') {
@@ -148,7 +149,7 @@ export default function EditMapClient({
     }
 
     setIsLoadingDBLayers(true)
-    getAvailableStudyAreas().then(areas => {
+    getAvailableStudyAreas().then((areas: SetStateAction<ImportableStudyArea[]>) => {
         setAvailableDBLayers(areas)
         setIsLoadingDBLayers(false)
     })
@@ -274,6 +275,7 @@ export default function EditMapClient({
           setAttributeTableLayerId(layerId as string || 'all')
           // Ouvrir le panneau latéral si fermé pour voir les infos
           if (!isSidebarOpen) setIsSidebarOpen(true);
+          // eslint-disable-next-line @typescript-eslint/no-unused-expressions
           L.DomEvent.stopPropagation
         })
         
@@ -289,7 +291,7 @@ export default function EditMapClient({
     })
     
 
-  }, [features, activeLayers, selectedFeatureId, map])
+  }, [features, activeLayers, selectedFeatureId, map, isSidebarOpen])
 
   // --- DRAW CONTROL ---
   useEffect(() => {
@@ -440,15 +442,15 @@ export default function EditMapClient({
 
   const handleImportLayer = async (area: ImportableStudyArea) => {
       try {
-          const res = await fetch(area.url);
-          if (!res.ok) throw new Error("Impossible de télécharger le GeoJSON");
-          const geoJson = await res.json();
-          
+          const res = await kyInstance.get(area.url).json<L.GeoJSON>();
+          if (!res) throw new Error("Impossible de télécharger le GeoJSON");
+          const geoJson = res;
+          // @ts-expect-error - An 
           const newFeatures = (geoJson.features || [geoJson]).map((f: GeoJSON.Feature, i: number) => ({
               ...f,
               id: `imp-${area.id}-${i}`,
               properties: { ...f.properties, _layerId: area.id } 
-          }));
+          })).filter((f:ExtendedFeature)=>!!f.geometry);
 
           setFeatures(prev => [...prev, ...newFeatures]);
 
@@ -475,6 +477,8 @@ export default function EditMapClient({
           setTimeout(() => handleZoomToLayer(area.id), 500);
 
       } catch (e) {
+        console.log(e);
+        
           showToast("Erreur lors de l'import", "destructive");
       }
   };
@@ -690,10 +694,9 @@ export default function EditMapClient({
           features={features}
           activeLayers={activeLayers}
           onOpenLayerDialog={() => setIsLayerDialogOpen(true)}
-          onEditLayerStyle={(id) => { setIsLayerDialogOpen(true); setEditingStyleLayerId(id); }}
+          onEditLayerStyle={(id) => { setTargetLayer(id); setIsLayerDialogOpen(true); setEditingStyleLayerId(id); }}
           formAction={formAction}
           prepareFormData={prepareFormData}
-          // Nouveaux Props pour les fonctionnalités demandées
           selectedFeature={selectedFeature}
           onZoomToLayer={handleZoomToLayer}
           onToggleLayerVisibility={handleToggleLayerVisibility}

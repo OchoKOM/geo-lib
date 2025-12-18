@@ -133,7 +133,7 @@ export default function MapSidebar({
                                     size='sm'
                                     className="h-6 w-6"
                                     onClick={() => onEditLayerStyle(layer.id)}
-                                    title="Configurer le style"
+                                    title="Propriétés"
                                 >
                                     <Settings2 className='w-3.5 h-3.5 text-slate-400' />
                                 </Button>

@@ -85,7 +85,8 @@ export default function LayerManagerDialog ({
     
     // On prend les features qui appartiennent à cette couche
     const layerFeatures = features.filter(f => {
-        const type = f.geometry.type;
+        const type = f.geometry?.type;
+        if(!type)  return false;
         const layer = activeLayers.find(l => l.id === editingStyleLayerId);
         if (!layer) return false;
         
