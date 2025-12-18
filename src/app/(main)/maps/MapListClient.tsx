@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import L from 'leaflet'
@@ -15,7 +15,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Circle,
-  Book
+  Book,
+  ListFilter,
+  X
 } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -69,12 +71,26 @@ export function MapListClient({
   // Ref pour stocker le timer du debounce
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
-  const [isLoading, setIsLoading] = useState(true)
-  
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [isPending, startTransition] = useTransition()
+  const [isMapLoading, setIsMapLoading] = useState(true)
+  const [isNavigating, setIsNavigating] = useState(false) // Nouvel état pour la navigation vers détail
+  const [isMobileListOpen, setIsMobileListOpen] = useState(false) // État pour plier/déplier sur mobile
+ 
+
   // Hooks pour la navigation et l'URL
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const router = useRouter()
+
+  // --- GESTION DE LA NAVIGATION VERS DÉTAIL ---
+  // Cette fonction centralise la navigation pour gérer le loader
+  const handleNavigateToDetail = (id: string) => {
+    setIsNavigating(true)
+    startTransition(() => {
+      router.push(`/maps/${id}`)
+    })
+  }
 
   // --- GESTION DE LA RECHERCHE (DEBOUNCE NATIF) ---
   const handleSearch = (term: string) => {
@@ -85,22 +101,26 @@ export function MapListClient({
 
     // 2. On démarre un nouveau timer de 300ms
     searchTimeoutRef.current = setTimeout(() => {
-      const params = new URLSearchParams(searchParams)
-      if (term) {
-        params.set('q', term)
-      } else {
-        params.delete('q')
-      }
-      params.set('page', '1') // Reset page on search
-      router.replace(`${pathname}?${params.toString()}`)
+      startTransition(() => {
+        const params = new URLSearchParams(searchParams)
+        if (term) {
+          params.set('q', term)
+        } else {
+          params.delete('q')
+        }
+        params.set('page', '1') // Reset page on search
+        router.replace(`${pathname}?${params.toString()}`)
+      })
     }, 300)
   }
 
   // --- GESTION DE LA PAGINATION ---
   const handlePageChange = (newPage: number) => {
-    const params = new URLSearchParams(searchParams)
-    params.set('page', newPage.toString())
-    router.push(`${pathname}?${params.toString()}`)
+    startTransition(() => {
+      const params = new URLSearchParams(searchParams)
+      params.set('page', newPage.toString())
+      router.push(`${pathname}?${params.toString()}`)
+    })
   }
 
   // --- NETTOYAGE ---
@@ -139,7 +159,7 @@ export function MapListClient({
 
     mapInstanceRef.current = map
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsLoading(false)
+    setIsMapLoading(false)
   }, [])
 
   // --- GESTION DES MARQUEURS ---
@@ -171,16 +191,17 @@ export function MapListClient({
       const customIconHtml = renderToStaticMarkup(
         <MapPinIcon size="32px" color={color} pinColor="#ffffff" />
       )
-      
+
       const customIcon = L.divIcon({
         html: customIconHtml,
         className: 'custom-map-pin',
         iconSize: [32, 32],
-        iconAnchor: [16, 32], 
+        iconAnchor: [16, 32],
         popupAnchor: [0, -32],
       })
 
-      const popupContent = `
+      const popupDiv = document.createElement('div')
+      popupDiv.innerHTML = `
         <div class="p-1 min-w-[200px] flex flex-col gap-2">
           <h3 class="font-bold text-sm mb-1 text-slate-900" style="border-left: 3px solid ${color}; padding-left: 6px;">${area.name}</h3>
           <p class="text-xs text-muted-foreground mb-2 line-clamp-2">
@@ -194,27 +215,26 @@ export function MapListClient({
               <span class="text-green-600">${mapTypeIconHtml}</span> ${area.geometryType}
             </span>
           </div>
-          <button class="popup-link w-full ${btnClass}">Accéder aux détails</button>
+          <button class="popup-link w-full ${btnClass}">Accéder à la zone</button>
         </div>
       `
 
+      const linkElement = popupDiv.querySelector('.popup-link')
+      if (linkElement) {
+        linkElement.addEventListener('click', (event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          startTransition(() => {
+            router.push(`/maps/${area.id}`)
+          })
+        })
+      }
+
       const marker = L.marker([area.centerLat, area.centerLng], { icon: customIcon })
-        .bindPopup(popupContent)
+        .bindPopup(popupDiv)
         .addTo(markers)
 
       openedByClickMap.set(marker, false)
-
-      marker.on('popupopen', () => {
-        const popupElement = marker.getPopup()?.getElement()
-        if (popupElement) {
-          const linkElement = popupElement.querySelector('.popup-link')
-          if (linkElement) {
-            linkElement.addEventListener('click', () => {
-              router.push(`/maps/${area.id}`)
-            })
-          }
-        }
-      })
 
       let closeTimeout: NodeJS.Timeout | null = null;
       let isClicking = false;
@@ -275,6 +295,7 @@ export function MapListClient({
   const handleFlyTo = (lat: number, lng: number) => {
     if (mapInstanceRef.current) {
       mapInstanceRef.current.flyTo([lat, lng], 15, { duration: 1.5 })
+      setIsMobileListOpen(false)
     }
   }
 
@@ -295,84 +316,122 @@ export function MapListClient({
   }
 
   return (
-    <div className="relative w-full flex-1 bg-slate-100 dark:bg-slate-900 overflow-hidden flex flex-col md:flex-row">
+    <div className="relative w-full h-[calc(100vh-4rem)] bg-slate-100 dark:bg-slate-900 overflow-hidden flex flex-col md:flex-row">
       
-      {/* PANEL DE RECHERCHE ET LÉGENDE */}
-      <div className="absolute top-4 left-4 bottom-auto md:bottom-4 w-[calc(100%-2rem)] md:w-80 z-400 bg-white/95 dark:bg-slate-900/95 backdrop-blur shadow-xl rounded-lg border border-slate-200 dark:border-slate-800 flex flex-col max-h-[60vh] md:max-h-[calc(100%-2rem)] transition-all">
+      {/* --- PANEL DE RECHERCHE RESPONSIVE --- 
+        Mobile: Largeur presque totale, flottant en haut. Liste pliable.
+        Desktop: Largeur fixe (w-80), hauteur max limitée mais fixe.
+      */}
+      <div className={`
+        absolute z-400 transition-all duration-300 ease-in-out bg-white/95 dark:bg-slate-900/95 backdrop-blur shadow-xl rounded-lg border border-slate-200 dark:border-slate-800 flex flex-col
+        /* Styles Mobile par défaut */
+        left-2 right-2 top-2 
+        ${isMobileListOpen ? 'max-h-[70vh]' : 'max-h-auto'}
+        
+        /* Styles Desktop (md) */
+        md:left-4 md:right-auto md:top-4 md:bottom-4 md:w-80 md:max-h-[calc(100%-2rem)] md:h-auto
+      `}>
         
         {/* En-tête recherche */}
-        <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col gap-3">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
-            <Input
-              type="text"
-              placeholder="Rechercher..."
-              className="pl-9 h-9 text-sm bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 focus-visible:ring-1"
-              defaultValue={initialSearchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-            />
+        <div className="p-3 md:p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col gap-3 shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+              <Input
+                type="text"
+                placeholder="Rechercher une zone..."
+                className="pl-9 h-9 text-sm bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 focus-visible:ring-1"
+                defaultValue={initialSearchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                // Focus sur l'input ouvre la liste sur mobile
+                onFocus={() => setIsMobileListOpen(true)}
+              />
+            </div>
+            {/* Bouton Toggle uniquement visible sur Mobile */}
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="md:hidden h-9 w-9 shrink-0"
+              onClick={() => setIsMobileListOpen(!isMobileListOpen)}
+            >
+              {isMobileListOpen ? <X className="h-4 w-4" /> : <ListFilter className="h-4 w-4" />}
+            </Button>
           </div>
         </div>
 
-        {/* Liste des résultats */}
-        <div className="overflow-y-auto flex-1 p-2 space-y-2 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
-          {maps.length === 0 ? (
-            <div className="text-center py-8 text-slate-400 text-xs">
-              <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              Aucun résultat.
-            </div>
-          ) : (
-            maps.map((area) => {
-              const color = getColorForId(area.id)
-              return (
-                <div 
-                  key={area.id}
-                  onClick={() => handleFlyTo(area.centerLat, area.centerLng)}
-                  className="group flex flex-col gap-1 p-3 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 border border-transparent hover:border-blue-100 dark:hover:border-blue-900 transition-all cursor-pointer"
-                >
-                  <div className="flex items-start gap-2">
-                    {/* INDICATEUR DE COULEUR SYNCHRONISÉ */}
-                    <Circle 
-                      className="w-3 h-3 mt-1 shrink-0" 
-                      fill={color} 
-                      color={color} 
-                    />
-                    
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between">
-                        <h4 className="font-semibold text-sm text-slate-800 dark:text-slate-200 group-hover:text-blue-600 transition-colors">
-                          {area.name}
-                        </h4>
-                        <Navigation className="w-3 h-3 text-slate-300 group-hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+        {/* Liste des résultats - Masquée sur mobile si fermée, toujours visible sur desktop */}
+        <div className={`
+          flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700
+          ${!isMobileListOpen ? 'hidden md:block' : 'block'} 
+        `}>
+          <div className="p-2 space-y-2">
+            {maps.length === 0 ? (
+              <div className="text-center py-8 text-slate-400 text-xs">
+                <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                Aucun résultat.
+              </div>
+            ) : (
+              maps.map((area) => {
+                const color = getColorForId(area.id)
+                return (
+                  <div 
+                    key={area.id}
+                    onClick={() => handleFlyTo(area.centerLat, area.centerLng)}
+                    className="group flex flex-col gap-1 p-3 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 border border-transparent hover:border-blue-100 dark:hover:border-blue-900 transition-all cursor-pointer bg-white dark:bg-slate-950 md:bg-transparent"
+                  >
+                    <div className="flex items-start gap-2">
+                      <Circle className="w-3 h-3 mt-1 shrink-0" fill={color} color={color} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between">
+                          <h4 className="font-semibold text-sm text-slate-800 dark:text-slate-200 truncate group-hover:text-blue-600 transition-colors">
+                            {area.name}
+                          </h4>
+                          <Navigation className="w-3 h-3 text-slate-300 group-hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0" />
+                        </div>
+                        {area.description && (
+                          <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5">
+                            {area.description}
+                          </p>
+                        )}
                       </div>
-                      
-                      {area.description && (
-                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5">
-                          {area.description}
-                        </p>
-                      )}
+                    </div>
+                    
+                    <div className="flex items-center justify-between mt-1 pl-5">
+                      <div className="flex items-center gap-2">
+                         <span className="inline-flex items-center text-[10px] text-slate-400 font-mono bg-slate-100 dark:bg-slate-800 px-1.5 rounded">
+                          {area.geometryType}
+                        </span>
+                        {area.bookCount > 0 && (
+                          <span className="inline-flex items-center text-[10px] text-slate-500">
+                            <Book className="w-3 h-3 mr-1" /> {area.bookCount}
+                          </span>
+                        )}
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-6 text-[10px] px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleNavigateToDetail(area.id)
+                        }}
+                      >
+                        Détails &rarr;
+                      </Button>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center gap-3 mt-1 pl-5">
-                    <span className="inline-flex items-center text-[10px] text-slate-400 font-mono bg-slate-100 dark:bg-slate-800 px-1.5 rounded">
-                      {area.geometryType || "Géometrie Inconnue"}
-                    </span>
-                    {area.bookCount > 0 && (
-                      <span className="inline-flex items-center text-[10px] text-slate-500">
-                        <Book className="w-3 h-3 mr-1" /> {area.bookCount}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )
-            })
-          )}
+                )
+              })
+            )}
+          </div>
         </div>
 
-        {/* Pied de page Pagination */}
+        {/* Pied de page Pagination - Conditionnel sur mobile */}
         {totalPages > 1 && (
-          <div className="p-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950/50 rounded-b-lg">
+           <div className={`
+             p-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950/50 rounded-b-lg shrink-0
+             ${!isMobileListOpen ? 'hidden md:flex' : 'flex'}
+           `}>
             <Button
               variant="ghost"
               size="icon"
@@ -403,11 +462,24 @@ export function MapListClient({
       {/* Conteneur Carte */}
       <div ref={mapContainerRef} className="absolute inset-0 z-0 h-full w-full" />
       
-      {/* Loader */}
-      {isLoading && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-          <span className="ml-3 text-sm font-medium text-slate-600 dark:text-slate-300">Chargement de la carte...</span>
+      {/* --- LOADER NAVIGATION (GLOBAL) --- 
+        S'affiche quand on clique sur "Détails" ou qu'on change de page
+      */}
+      {(isNavigating) && (
+        <div className="absolute inset-0 z-500 flex flex-col items-center justify-center bg-white/60 dark:bg-slate-900/60 backdrop-blur-[2px] animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-800 p-4 rounded-full shadow-2xl mb-4">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          </div>
+          <span className="text-sm font-semibold text-slate-800 dark:text-white bg-white/80 dark:bg-slate-900/80 px-4 py-2 rounded-full shadow-sm">
+            Chargement de la zone...
+          </span>
+        </div>
+      )}
+
+      {/* Loader Initialisation Carte */}
+      {isMapLoading && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-100/80 dark:bg-slate-900/80 backdrop-blur-sm">
+          <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
         </div>
       )}
     </div>
