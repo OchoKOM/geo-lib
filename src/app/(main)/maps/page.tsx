@@ -11,52 +11,73 @@ export const metadata = {
   description: 'Gestion et prévisualisation des zones géographiques.'
 }
 
-export default async function MapsIndexPage() {
-  // 1. Vérification de la session
-  const session = await getSession()
-  if (!session) {
-    redirect('/login')
-  }
+// Définition des props pour récupérer les searchParams (Next.js 13+)
+interface PageProps {
+  searchParams: { [key: string]: string | string[] | undefined }
+}
 
-  // 2. Récupération des zones avec les relations nécessaires
-  // On inclut le fichier GeoJSON pour obtenir l'URL et on compte les livres
-  const studyAreas = await prisma.studyArea.findMany({
-    orderBy: { createdAt: 'desc' }, // Les plus récentes en premier
-    include: {
-      geojsonFile: {
-        select: { url: true } // On a juste besoin de l'URL pour la preview
-      },
-      _count: {
-        select: { books: true } // Compteur de livres associés
+export default async function MapsIndexPage({ searchParams }: PageProps) {
+  const {page: pageParam, q} = await searchParams;
+
+  // 2. Gestion de la Pagination et de la Recherche
+  const page = Number(pageParam) || 1
+  const pageSize = 10 // Nombre d'éléments par page
+  const searchQuery = typeof q === 'string' ? q : ''
+  const skip = (page - 1) * pageSize
+
+  // Construction du filtre de recherche (WHERE)
+  const whereClause = searchQuery ? {
+    OR: [
+      { name: { contains: searchQuery, mode: 'insensitive' as const } },
+      { description: { contains: searchQuery, mode: 'insensitive' as const } }
+    ]
+  } : {}
+
+  // 3. Récupération des données en parallèle (Données + Compte total)
+  const [studyAreas, totalCount] = await Promise.all([
+    prisma.studyArea.findMany({
+      where: whereClause,
+      orderBy: { createdAt: 'desc' },
+      skip: skip,
+      take: pageSize,
+      include: {
+        geojsonFile: {
+          select: { url: true }
+        },
+        _count: {
+          select: { books: true }
+        }
       }
-    }
-  })
+    }),
+    prisma.studyArea.count({ where: whereClause })
+  ])
 
-  // 3. Transformation des données pour le client
-  // On nettoie les objets pour ne passer que le nécessaire au composant React
+  const totalPages = Math.ceil(totalCount / pageSize)
+
+  // 4. Transformation des données pour le client
   const mapsData = studyAreas.map(area => ({
     id: area.id,
     name: area.name,
     description: area.description,
     geometryType: area.geometryType,
-    centerLat: (area.centerLat && area.centerLat !== 0) ? area.centerLat : -4.4419, // Fallback Kinshasa if null or 0
+    centerLat: (area.centerLat && area.centerLat !== 0) ? area.centerLat : -4.4419,
     centerLng: (area.centerLng && area.centerLng !== 0) ? area.centerLng : 15.2663,
     geojsonUrl: area.geojsonFile?.url || null,
     bookCount: area._count.books,
-    createdAt: area.createdAt.toISOString() // Sérialisation des dates pour le client
+    createdAt: area.createdAt.toISOString()
   }))
 
   return (
-    <div className="h-[calc(100vh-64px)] relative bgbackground flex flex-col">
+    <div className="h-[calc(100vh-64px)] relative bg-background flex flex-col">
       {/* En-tête de la page */}
-      <div className="flex flex-wrap md:flex-row items-start md:items-center justify-between gap-4 p-4">
+      <div className="flex flex-wrap md:flex-row items-start md:items-center justify-between gap-4 p-4 border-b border-border">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
             <MapIcon className="w-6 h-6 text-blue-600" />
             Zones d&apos;Étude
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-            {mapsData.length} zone(s) enregistrée(s) dans la base de données.
+            {totalCount} zone(s) trouvée(s) • Page {page} sur {totalPages || 1}
           </p>
         </div>
         
@@ -68,7 +89,14 @@ export default async function MapsIndexPage() {
       </div>
 
       {/* Liste Client avec Previews */}
-      <MapListClient maps={mapsData} />
+      {/* On passe les données paginées et les infos de pagination au client */}
+      <MapListClient 
+        maps={mapsData} 
+        totalPages={totalPages}
+        currentPage={page}
+        totalCount={totalCount}
+        initialSearchQuery={searchQuery}
+      />
     </div>
   )
 }
