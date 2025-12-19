@@ -5,6 +5,7 @@ import { NAV_ITEMS } from '@/lib/dashboard-config'
 import React from 'react'
 import { cn } from '@/lib/utils'
 import Image from 'next/image'
+import { LogoutDialog } from '../Header'
 
 interface DashboardSidebarProps {
   sidebarOpen: boolean
@@ -110,10 +111,13 @@ export function DashboardSidebar({
 
       {/* 4. FOOTER */}
       <div className='p-4 border-t border-slate-100 dark:border-slate-800'>
-        <Button variant="outline" className="w-full justify-start gap-2 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/20 dark:hover:border-red-900 hover:border-red-200">
+        <LogoutDialog>
+          <Button variant="outline" className="w-full justify-start gap-2 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/20 dark:hover:border-red-900 hover:border-red-200">
             <LogOut className="w-4 h-4" />
             Déconnexion
         </Button>
+        </LogoutDialog>
+        
         <p className='text-[10px] text-center text-slate-400 mt-4'>
           v2.0.1 &bull; GeoLib Admin
         </p>

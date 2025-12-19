@@ -79,10 +79,10 @@ export function DashboardOverview({ stats, loading, onNavigate }: DashboardOverv
         {cards.map((card, idx) => (
           <Card 
             key={idx} 
-            className="border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+            className="border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all cursor-pointer group px-1"
             onClick={() => onNavigate(card.nav as EntityType)}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">
                 {card.title}
               </CardTitle>

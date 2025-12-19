@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 
 // --- 1. IMPORTS UI ---
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Dialog,
@@ -61,6 +61,7 @@ import { DashboardOverview } from '@/components/dashboard/DashboardOverview'
 import { NAV_ITEMS, CurrentEntity, DeleteTarget } from '@/lib/dashboard-config'
 import React from 'react'
 import { cn } from '@/lib/utils'
+import Link from 'next/link'
 
 export default function DashboardPage() {
   // --- STATE UI ---
@@ -252,8 +253,15 @@ export default function DashboardPage() {
       <div className='h-screen w-full flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4'>
         <div className='bg-white dark:bg-slate-900 p-8 rounded-lg shadow-xl text-center max-w-md border border-slate-200 dark:border-slate-800'>
           <Ban className='w-12 h-12 text-red-500 mx-auto mb-4' />
-          <h1 className='text-xl font-bold text-slate-800 dark:text-white mb-2'>Accès Refusé</h1>
-          <Button className='w-full bg-blue-600 hover:bg-blue-700 text-white'>Se connecter</Button>
+          <h1 className='text-xl font-bold text-slate-800 dark:text-white mb-2'>
+            Accès Refusé
+          </h1>
+          <p className='text-slate-500 dark:text-slate-400 mb-6'>
+            Vous devez être connecté pour accéder au tableau de bord administratif.
+          </p>
+          <Link href="/login" className={buttonVariants()}>
+            Se connecter
+          </Link>
         </div>
       </div>
     )
@@ -348,10 +356,10 @@ export default function DashboardPage() {
 
         {/* CONTENT SCROLLABLE */}
         <main className='flex-1 overflow-y-auto p-6 bg-slate-50/50 dark:bg-slate-950 max-h-full'>
-          <div className='max-w-7xl mx-auto'>
+          <div className='max-w-7xl mx-auto flex flex-col gap-6'>
             
             {/* Titre de Section Dynamique */}
-            <div className="mb-8">
+            <div className="">
               <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
                 {activeNavItem?.label}
               </h1>

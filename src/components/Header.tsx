@@ -33,7 +33,15 @@ import {
 } from './ui/alert-dialog'
 import { usePathname } from 'next/dist/client/components/navigation'
 import { useTheme } from '@/context/ThemeProvider'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from './ui/dropdown-menu'
 import Logo from './ui/logo'
 import { cn } from '@/lib/utils'
 import Image from 'next/image'
@@ -62,33 +70,33 @@ const commonLinks: NavLink[] = [
   {
     href: '/',
     label: 'Accueil',
-    page: "Accueil",
+    page: 'Accueil',
     icon: <Globe2 className='w-4 h-4' />,
     requires: ['INVITE', 'READER', 'AUTHOR', 'LIBRARIAN', 'ADMIN']
   },
   {
     href: '/maps',
     label: 'Carte Interactive',
-    page: "Carte",
+    page: 'Carte',
     icon: <Map className='w-4 h-4' />,
     requires: ['INVITE', 'READER', 'AUTHOR', 'LIBRARIAN', 'ADMIN']
-  },
+  }
 ]
 
 const authenticatedLinks: NavLink[] = [
   {
     href: '/admin/loans',
     label: 'Gestion Prêts',
-    page: "Admin",
+    page: 'Admin',
     icon: <BookOpen className='w-4 h-4' />,
     requires: ['LIBRARIAN', 'ADMIN']
   },
   {
     href: '/dashboard',
     label: 'Tableau de Bord',
-    page: "Admin",
+    page: 'Admin',
     icon: <LayoutDashboard className='w-4 h-4' />,
-    requires: ['ADMIN', "AUTHOR", "LIBRARIAN"]
+    requires: ['ADMIN', 'AUTHOR', 'LIBRARIAN']
   }
 ]
 
@@ -105,7 +113,7 @@ const authenticatedLinks: NavLink[] = [
 const ThemeSelector = () => {
   // Récupération de l'état actuel du thème et de la fonction de modification
   const { theme, setTheme, isDark } = useTheme()
-  
+
   // 1. NOUVEL ÉTAT : Utilisé pour savoir si le composant est monté côté client
   const [mounted, setMounted] = useState(false)
 
@@ -114,19 +122,17 @@ const ThemeSelector = () => {
     setMounted(true)
   }, [])
 
-  // 3. LOGIQUE D'ICÔNE CONDITIONNELLE : 
+  // 3. LOGIQUE D'ICÔNE CONDITIONNELLE :
   // Déterminer l'icône réelle
   let TriggerIcon = Sun
   if (mounted) {
     TriggerIcon = isDark ? Moon : Sun
   }
-  
+
   // Fonction de gestion du changement de valeur
   const handleThemeChange = (value: string) => {
     setTheme(value as 'light' | 'dark' | 'system')
   }
-
- 
 
   return (
     <DropdownMenu>
@@ -142,29 +148,27 @@ const ThemeSelector = () => {
           <TriggerIcon className='w-5 h-5' />
         </Button>
       </DropdownMenuTrigger>
-      
+
       <DropdownMenuContent className='w-48'>
         <DropdownMenuLabel>Sélectionner le Thème</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        
+
         {/* Utilisation de DropdownMenuRadioGroup pour la sélection exclusive */}
         <DropdownMenuRadioGroup value={theme} onValueChange={handleThemeChange}>
-          
           <DropdownMenuRadioItem value='light'>
             <Sun className='w-4 h-4 mr-2' />
             Clair
           </DropdownMenuRadioItem>
-          
+
           <DropdownMenuRadioItem value='dark'>
             <Moon className='w-4 h-4 mr-2' />
             Sombre
           </DropdownMenuRadioItem>
-          
+
           <DropdownMenuRadioItem value='system'>
             <Settings className='w-4 h-4 mr-2' />
             Système
           </DropdownMenuRadioItem>
-
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -175,7 +179,7 @@ const ThemeSelector = () => {
 // -----------------------------------------------------------------------------
 export default function Header () {
   // Récupération de l'état d'authentification
-  const { isAuthenticated, role, user } = useAuth();
+  const { isAuthenticated, role, user } = useAuth()
   const pathname = usePathname()
   // Cette fonction gère la correspondance exacte ET la correspondance des sous-chemins (pour ignorer les /admin/loans/123 et les URL Params)
   const isActive = (href: string) => {
@@ -187,9 +191,11 @@ export default function Header () {
     return pathname.startsWith(href)
   }
   const activeLink = (href: string) => {
-   // Retourne le lien actif complet
-   const link = [...commonLinks, ...authenticatedLinks].find(link => link.href === href)
-   return link || null
+    // Retourne le lien actif complet
+    const link = [...commonLinks, ...authenticatedLinks].find(
+      link => link.href === href
+    )
+    return link || null
   }
   // ✨ NOUVEAUTÉ : État pour gérer l'ouverture/fermeture du menu mobile
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -247,28 +253,46 @@ export default function Header () {
           {isAuthenticated ? (
             <>
               {/* Bouton 'Mon Compte' pour les connectés */}
-                <div className='flex items-center gap-1'>
-                  <div className='hidden md:flex flex-col items-end mr-2'>
-                    <span className='text-sm font-semibold '>
-                      {user?.name || 'Compte'}{' '}
-                    </span>
-                    <span className='text-xs text-muted-foreground'>
-                      {labels[role.toLowerCase() as keyof typeof labels]}
-                    </span>
-                  </div>
-                  <Link href='/profile' passHref className={cn(buttonVariants({size:"icon", variant:"outline"}), "rounded-full")}>
-                      {user?.avatarUrl ? (
-                        <Image src={user.avatarUrl} alt='Avatar' width={32} height={32} className='w-8 h-8 rounded-full object-cover' />
-                      ) : (
-                      <UserCircle className='w-6 h-6' />
-                        )} 
-                  </Link>
+              <div className='flex items-center gap-1'>
+                <div className='hidden md:flex flex-col items-end mr-2'>
+                  <span className='text-sm font-semibold '>
+                    {user?.name || 'Compte'}{' '}
+                  </span>
+                  <span className='text-xs text-muted-foreground'>
+                    {labels[role.toLowerCase() as keyof typeof labels]}
+                  </span>
                 </div>
+                <Link
+                  href='/profile'
+                  passHref
+                  className={cn(
+                    buttonVariants({ size: 'icon', variant: 'outline' }),
+                    'rounded-full'
+                  )}
+                >
+                  {user?.avatarUrl ? (
+                    <Image
+                      src={user.avatarUrl}
+                      alt='Avatar'
+                      width={32}
+                      height={32}
+                      className='w-8 h-8 rounded-full object-cover'
+                    />
+                  ) : (
+                    <UserCircle className='w-6 h-6' />
+                  )}
+                </Link>
+              </div>
               {/* LogoutDialog s'affiche uniquement sur desktop pour ne pas encombrer le header mobile */}
               <LogoutDialog isMobile={false} />
             </>
           ) : (
-            <Link href={`/login${pathname !== "/" ? `?continue=${encodeURI(pathname)}` : ""}`} passHref>
+            <Link
+              href={`/login${
+                pathname !== '/' ? `?continue=${encodeURI(pathname)}` : ''
+              }`}
+              passHref
+            >
               <Button
                 variant='ghost'
                 className='hidden sm:flex items-center gap-2 bg-slate-800 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm'
@@ -326,13 +350,28 @@ export default function Header () {
           {isAuthenticated ? (
             <>
               <li>
-                <Link href='/profile' passHref className='flex items-center gap-1 px-2'>
-                  <div  className={cn(buttonVariants({size:"icon-lg", variant:"outline"}), "rounded-full")}>
-                      {user?.avatarUrl ? (
-                        <Image src={user.avatarUrl} alt='Avatar' width={36} height={36} className='w-9 h-9 rounded-full object-cover' />
-                      ) : (
+                <Link
+                  href='/profile'
+                  passHref
+                  className='flex items-center gap-1 px-2'
+                >
+                  <div
+                    className={cn(
+                      buttonVariants({ size: 'icon-lg', variant: 'outline' }),
+                      'rounded-full'
+                    )}
+                  >
+                    {user?.avatarUrl ? (
+                      <Image
+                        src={user.avatarUrl}
+                        alt='Avatar'
+                        width={36}
+                        height={36}
+                        className='w-9 h-9 rounded-full object-cover'
+                      />
+                    ) : (
                       <UserCircle className='w-6 h-6' />
-                        )} 
+                    )}
                   </div>
                   <div className='flex flex-col items-end mr-2'>
                     <span className='text-sm font-semibold '>
@@ -369,10 +408,17 @@ export default function Header () {
 // Fichier : components/Header.tsx (Nouveau corps de la fonction LogoutDialog)
 
 // Ajout de la prop isMobile pour styliser différemment
-export function LogoutDialog ({ isMobile }: { isMobile: boolean }) {
+export function LogoutDialog ({
+  isMobile = false,
+  children
+}: {
+  isMobile?: boolean
+  children?: React.ReactNode
+}) {
   const [isLogingOut, setIsLogingOut] = useState(false)
   const [open, setOpen] = useState(false)
-  const continueUrl = typeof window !== 'undefined' ? window.location.pathname : '/'
+  const continueUrl =
+    typeof window !== 'undefined' ? window.location.pathname : '/'
   // Gestion de la déconnexion
   const handleLogout = async (continueUrl: string) => {
     // Appel de la Server Action pour déconnecter
@@ -380,7 +426,6 @@ export function LogoutDialog ({ isMobile }: { isMobile: boolean }) {
     await logoutAction(continueUrl)
     // Le layout de Next.js se rafraîchira, et l'utilisateur reviendra à l'état déconnecté
     setIsLogingOut(false)
-
   }
   function closeDiaog () {
     if (!isLogingOut) {
@@ -398,19 +443,26 @@ export function LogoutDialog ({ isMobile }: { isMobile: boolean }) {
   return (
     <AlertDialog open={open} onOpenChange={toggleDialog}>
       {/* Bouton pour déclencher la déconnexion : style différent selon mobile ou desktop */}
-      <div
-        onClick={() => setOpen(true)}
-        className={
-          isMobile
-            ? 'flex items-center gap-2 p-3 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900 transition-colors font-medium cursor-pointer'
-            : 'rounded-full hover:bg-red-100 dark:hover:bg-red-900 text-red-600 dark:text-red-400 transition-colors hidden sm:block cursor-pointer p-2'
-        }
-        aria-label='Déconnexion'
-      >
-        <LogOut className='w-5 h-5' />
-        {isMobile && <span>Déconnexion</span>}{' '}
-        {/* Affiche le texte sur mobile */}
-      </div>
+      {children
+        ? (
+            <div onClick={() => setOpen(true)}>{children}</div>
+        )
+        : (
+            <div
+              onClick={() => setOpen(true)}
+              className={
+                isMobile
+                  ? 'flex items-center gap-2 p-3 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900 transition-colors font-medium cursor-pointer'
+                  : 'rounded-full hover:bg-red-100 dark:hover:bg-red-900 text-red-600 dark:text-red-400 transition-colors hidden sm:block cursor-pointer p-2'
+              }
+              aria-label='Déconnexion'
+            >
+              <LogOut className='w-5 h-5' />
+              {isMobile && <span>Déconnexion</span>}{' '}
+              {/* Affiche le texte sur mobile */}
+            </div>
+          )}
+
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Déconnexion ?</AlertDialogTitle>
