@@ -1,16 +1,16 @@
-import { EntityType, EntityData, UserRole } from '@/lib/types'
+import { EntityType, EntityData, UserRole, FinanceEntityType, FinanceEntityData } from '@/lib/types'
 import { Book, Building2, GraduationCap, Layers, UserPlus, Users, LucideIcon, LayoutDashboard } from 'lucide-react'
 
 // Types locaux pour la gestion de l'état du dashboard
 export type CurrentEntity = {
-  type: EntityType | 'author_profiles'
-  data: EntityData
+  type: EntityType | FinanceEntityType | 'author_profiles'
+  data: EntityData | FinanceEntityData | Record<string, unknown>
   isEditing: boolean
   id?: string
 }
 
 export type DeleteTarget = {
-  type: EntityType
+  type: EntityType | FinanceEntityType
   id: string
 }
 

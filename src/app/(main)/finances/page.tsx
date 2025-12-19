@@ -1,0 +1,253 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import { 
+  CreditCard, 
+  HandCoins, 
+  Plus, 
+  RefreshCw, 
+  Loader2,
+} from 'lucide-react'
+
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { showToast } from '@/hooks/useToast'
+import { useAuth } from '@/components/AuthProvider'
+
+
+import { FinanceTable } from '@/components/finances/FinanceTable'
+import { FinanceForm } from '@/components/finances/FinanceForm'
+import { DashboardUser, UserRole, DashboardBook, DashboardLoan, DashboardSubscription, FinanceEntityData } from '@/lib/types'
+import { CurrentEntity, DeleteTarget } from '@/lib/dashboard-config'
+import { createEntityAction, deleteEntityAction, getDashboardDataAction, updateEntityAction } from '../dashboard/actions'
+
+export default function FinancePage() {
+  const { user } = useAuth()
+  const [activeTab, setActiveTab] = useState<'loans' | 'subscriptions'>('loans')
+  const [loading, setLoading] = useState(false)
+  
+  // Data State
+  const [loans, setLoans] = useState<DashboardLoan[]>([])
+  const [subscriptions, setSubscriptions] = useState<DashboardSubscription[]>([])
+  
+  // Resources for Selects
+  const [usersList, setUsersList] = useState<DashboardUser[]>([])
+  const [booksList, setBooksList] = useState<DashboardBook[]>([])
+
+  // Modal State
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [currentEntity, setCurrentEntity] = useState<CurrentEntity | null>(null)
+
+  // --- HELPERS ---
+  const isAuthorized = (role: UserRole) => {
+    if (!user) return false
+    const roles = Object.values(UserRole)
+    return roles.indexOf(user.role) >= roles.indexOf(role)
+  }
+
+  // --- DATA FETCHING ---
+  const fetchData = useCallback(async () => {
+    if (!user) return
+    setLoading(true)
+    try {
+      // 1. Charger les données principales
+      if (activeTab === 'loans') {
+        const res = await getDashboardDataAction('loans')
+        if (res.success && res.data) setLoans(res.data as DashboardLoan[])
+      } else {
+        const res = await getDashboardDataAction('subscriptions')
+        if (res.success && res.data) setSubscriptions(res.data as DashboardSubscription[])
+      }
+
+      // 2. Charger les ressources pour les formulaires (utilisateurs, livres)
+      // On le fait une seule fois ou si vide
+      if (usersList.length === 0) {
+        // Astuce: on utilise l'action existante pour récupérer les users si admin
+        // Sinon il faudrait une action spécifique "getUsersForSelect" pour les bibliothécaires
+        const uRes = await getDashboardDataAction('users') 
+        // @ts-expect-error casting
+        if (uRes.success && uRes.data) setUsersList(uRes.data)
+      }
+      if (booksList.length === 0 && activeTab === 'loans') {
+        const bRes = await getDashboardDataAction('books')
+        // @ts-expect-error casting
+        if (bRes.success && bRes.data) setBooksList(bRes.data)
+      }
+
+    } catch (err) {
+      console.error(err)
+      showToast("Erreur de chargement", "destructive")
+    } finally {
+      setLoading(false)
+    }
+  }, [activeTab, user, usersList.length, booksList.length])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  // --- HANDLERS ---
+  const handleCreateOrUpdate = async () => {
+    if (!currentEntity) return
+    setLoading(true)
+    try {
+      let res
+      if (currentEntity.isEditing && currentEntity.id) {
+        res = await updateEntityAction(currentEntity.type, currentEntity.id, currentEntity.data)
+      } else {
+        res = await createEntityAction(currentEntity.type, currentEntity.data)
+      }
+
+      if (res.success) {
+        showToast(res.message, "default")
+        setIsDialogOpen(false)
+        fetchData() // Refresh list
+      } else {
+        showToast(res.message, "destructive")
+      }
+    } catch (e) {
+      console.log(e);
+      showToast("Erreur serveur", "destructive")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDelete = async (target: DeleteTarget) => {
+    if(!confirm("Êtes-vous sûr ?")) return
+    setLoading(true)
+    try {
+      const res = await deleteEntityAction(target.type, target.id)
+      if (res.success) {
+        showToast("Supprimé avec succès", "default")
+        fetchData()
+      } else {
+        showToast(res.message, "destructive")
+      }
+    } catch (e) {
+      console.log(e);
+      
+      showToast("Erreur suppression", "destructive")
+    } finally {
+        setLoading(false)
+    }
+  }
+
+  // --- RENDER ---
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col font-sans">
+      {/* HEADER SIMPLE */}
+      <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <CreditCard className="w-6 h-6 text-emerald-600" />
+              Portail Financier
+            </h1>
+            <p className="text-xs text-slate-500">Gestion des prêts et abonnements</p>
+          </div>
+        </div>
+        
+        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+          <button
+            onClick={() => setActiveTab('loans')}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === 'loans' ? 'bg-white dark:bg-slate-700 shadow text-orange-600 dark:text-orange-400' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            <HandCoins className="w-4 h-4" /> Prêts
+          </button>
+          <button
+            onClick={() => setActiveTab('subscriptions')}
+             className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === 'subscriptions' ? 'bg-white dark:bg-slate-700 shadow text-emerald-600 dark:text-emerald-400' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            <CreditCard className="w-4 h-4" /> Abonnements
+          </button>
+        </div>
+      </header>
+
+      {/* CONTENU */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
+            {activeTab === 'loans' ? 'Registre des Prêts' : 'Liste des Abonnements'}
+          </h2>
+          <div className="flex gap-2">
+            <Button variant="outline" size="icon" onClick={fetchData} disabled={loading}>
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+            <Button 
+                onClick={() => {
+                    setCurrentEntity({
+                        type: activeTab,
+                        data: {} as FinanceEntityData,
+                        isEditing: false
+                    })
+                    setIsDialogOpen(true)
+                }}
+                className={activeTab === 'loans' ? 'bg-orange-600 hover:bg-orange-700 text-white dark:bg-[orangered]/80 dark:hover:bg-[orangered] dark:text-[#050100]' : 'bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-500 dark:hover:bg-emerald-400 dark:text-emerald-950'}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              {activeTab === 'loans' ? 'Nouveau Prêt' : 'Nouvel Abonnement'}
+            </Button>
+          </div>
+        </div>
+
+        <FinanceTable 
+            data={activeTab === 'loans' ? loans : subscriptions}
+            activeTab={activeTab}
+            onEdit={(item) => {
+                let formData: Record<string, unknown> = {}
+                if (activeTab === 'loans') {
+                    const loan = item as unknown as DashboardLoan
+                    formData = {
+                        userId: loan.user.id,
+                        bookId: loan.book?.id,
+                        dueDate: loan.dueDate,
+                        returnDate: loan.returnDate,
+                        isReturned: !!loan.returnDate
+                    }
+                } else if (activeTab === 'subscriptions') {
+                    const sub = item as unknown as DashboardSubscription
+                    formData = {
+                        userId: sub.user.id,
+                        endDate: sub.endDate,
+                        isActive: sub.isActive
+                    }
+                }
+                setCurrentEntity({ type: activeTab, data: formData, isEditing: true, id: item.id })
+                setIsDialogOpen(true)
+            }}
+            onDelete={handleDelete}
+            isAuthorized={isAuthorized}
+        />
+      </main>
+
+      {/* DIALOG FORMULAIRE */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>
+              {currentEntity?.isEditing ? 'Modifier' : 'Créer'} {activeTab === 'loans' ? 'un prêt' : 'un abonnement'}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {currentEntity && (
+             <FinanceForm 
+                currentEntity={currentEntity}
+                setCurrentEntity={setCurrentEntity}
+                users={usersList}
+                books={booksList}
+             />
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Annuler</Button>
+            <Button onClick={handleCreateOrUpdate} disabled={loading}>
+              {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Enregistrer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}

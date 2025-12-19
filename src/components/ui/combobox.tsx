@@ -2,127 +2,145 @@
 
 import * as React from 'react'
 import { Check, ChevronsUpDown } from 'lucide-react'
-import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command'
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem
+} from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-// --- Types de base pour les props du Combobox ---
+// --------------------------------------------------
+// Types
+// --------------------------------------------------
 
-// Définition d'un type générique pour les options (value/label)
 interface ComboboxOption {
   value: string
   label: string
 }
 
 interface ComboboxProps extends React.ComponentProps<typeof Popover> {
+  value?: string
+  defaultValue?: string
   onValueChange?: (value: string) => void
-  value?: string // Pour un composant contrôlé
-  defaultValue?: string // Pour la valeur initiale non contrôlée (AJOUTÉ)
-  name?: string // AJOUTÉ: Pour la soumission du formulaire
+  name?: string
   placeholder?: string
   selectPlaceholder?: string
   disabled?: boolean
-  className?: string
-  children: React.ReactNode // Nécessaire pour le pattern de composant composé
+  children: React.ReactNode
 }
 
 interface ComboboxTriggerProps extends React.ComponentProps<typeof Button> {
-  children: React.ReactNode // Le <ComboboxLabel/> ou le placeholder
+  children: React.ReactNode
 }
 
 interface ComboboxContentProps extends React.ComponentProps<typeof PopoverContent> {
-  className?: string
-  children: React.ReactNode // Contient <Command>
+  children: React.ReactNode
 }
 
 interface ComboboxItemProps extends React.ComponentProps<typeof CommandItem> {
   value: string
-  label?: string // MODIFIÉ: La propriété label est maintenant optionnelle
-  children: React.ReactNode
+  label?: string
+  children?: React.ReactNode
 }
 
-// --- Les Composants de base ---
+// --------------------------------------------------
+// Contexte
+// --------------------------------------------------
 
-// 1. Composant Racine
-function Combobox ({
-  value: controlledValue,
-  defaultValue, // AJOUTÉ
-  name, // AJOUTÉ
+interface ComboboxContextType {
+  localValue: string
+  setLocalValue: React.Dispatch<React.SetStateAction<string>>
+  open: boolean
+  setOpen: React.Dispatch<React.SetStateAction<boolean>>
+  onValueChange?: (value: string) => void
+  placeholder: string
+  selectPlaceholder: string
+  disabled: boolean
+  options: ComboboxOption[]
+}
+
+const ComboboxContext = React.createContext<ComboboxContextType | undefined>(undefined)
+
+const useComboboxContext = () => {
+  const ctx = React.useContext(ComboboxContext)
+  if (!ctx) throw new Error('Combobox components must be used inside <Combobox>')
+  return ctx
+}
+
+// --------------------------------------------------
+// Racine
+// --------------------------------------------------
+
+function Combobox({
+  value,
+  defaultValue = '',
   onValueChange,
+  name,
   placeholder = 'Rechercher...',
   selectPlaceholder = 'Sélectionner une option...',
   disabled = false,
-  className,
   children,
   ...props
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
-  
-  // MODIFIÉ: Initialisation avec defaultValue ou controlledValue, sinon chaîne vide.
-  const initialValue = controlledValue !== undefined ? controlledValue : (defaultValue || '')
+  const [localValue, setLocalValue] = React.useState(value ?? defaultValue)
 
-  const [localValue, setLocalValue] = React.useState(initialValue)
-  
-  // Extraction des options à partir des enfants (ComboboxItem)
-  const options = React.useMemo(() => {
-    const extractedOptions: ComboboxOption[] = []
-    
-    // Fonction récursive pour parcourir les enfants et extraire les options
-    const extractItems = (children: React.ReactNode) => {
-      React.Children.forEach(children, child => {
-        if (React.isValidElement(child)) {
-          if (child.type === ComboboxGroup) {
-             // @ts-expect-error - Si c'est un groupe, on parcourt ses enfants de manière récursive
-             extractItems(child.props.children)
-          } 
-          else if (child.type === ComboboxItem) {
-            const itemProps = child.props as ComboboxItemProps
-            // MODIFIÉ: Si label n'existe pas, on utilise la value
-            const extractedLabel = itemProps.label || itemProps.value 
-            extractedOptions.push({ value: itemProps.value, label: extractedLabel })
-          }
+  React.useEffect(() => {
+    if (value !== undefined) setLocalValue(value)
+  }, [value])
+
+  const options = React.useMemo<ComboboxOption[]>(() => {
+    const acc: ComboboxOption[] = []
+
+    const walk = (nodes: React.ReactNode) => {
+      React.Children.forEach(nodes, child => {
+        if (!React.isValidElement(child)) return
+
+        if (child.type === ComboboxGroup) {
+          // @ts-expect-error children
+          walk(child.props.children)
+        }
+
+        if (child.type === ComboboxItem) {
+          const { value, label } = child.props as ComboboxItemProps
+          acc.push({ value, label: label ?? value })
         }
       })
     }
-    
-    // On cherche d'abord le ComboboxContent, puis on extrait les items
+
     React.Children.forEach(children, child => {
       if (React.isValidElement(child) && child.type === ComboboxContent) {
-        // @ts-expect-error - Extraction des items à partir des enfants du ComboboxContent
-        extractItems(child.props.children)
+        // @ts-expect-error children
+        walk(child.props.children)
       }
     })
-    
-    return extractedOptions
-  }, [children]) // Dépend des enfants pour recalculer les options
 
+    return acc
+  }, [children])
 
-  // Garder le state local synchronisé avec la prop contrôlée
-  React.useEffect(() => {
-    if (controlledValue !== undefined) {
-      // S'assurer que la valeur est toujours une chaîne (y compris la chaîne vide)
-      setLocalValue(controlledValue || '')
-    }
-  }, [controlledValue])
+  const ctx = React.useMemo(
+    () => ({
+      localValue,
+      setLocalValue,
+      open,
+      setOpen,
+      onValueChange,
+      placeholder,
+      selectPlaceholder,
+      disabled,
+      options
+    }),
+    [localValue, open, onValueChange, placeholder, selectPlaceholder, disabled, options]
+  )
 
-  // Contexte mis à jour
-  const contextValue = React.useMemo(() => ({
-    localValue,
-    setLocalValue,
-    setOpen,
-    onValueChange,
-    placeholder,
-    selectPlaceholder,
-    disabled,
-    options, // Partage des options extraites via le contexte
-  }), [localValue, setLocalValue, setOpen, onValueChange, placeholder, selectPlaceholder, disabled, options])
-  
   return (
-    <ComboboxContext.Provider value={contextValue}>
-      {/* AJOUTÉ: Champ caché pour la soumission du formulaire */}
-      {name && <input type='hidden' name={name} value={localValue} />}
-      
+    <ComboboxContext.Provider value={ctx}>
+      {name && <input type="hidden" name={name} value={localValue} />}
       <Popover open={open} onOpenChange={setOpen} {...props}>
         {children}
       </Popover>
@@ -130,127 +148,108 @@ function Combobox ({
   )
 }
 
-// 2. Contexte
-interface ComboboxContextType {
-  localValue: string
-  setLocalValue: React.Dispatch<React.SetStateAction<string>>
-  setOpen: React.Dispatch<React.SetStateAction<boolean>>
-  onValueChange?: (value: string) => void
-  placeholder: string
-  selectPlaceholder: string
-  disabled: boolean
-  options: ComboboxOption[] // Maintenu pour le ComboboxLabel
-}
+// --------------------------------------------------
+// Trigger (CORRIGÉ truncate)
+// --------------------------------------------------
 
-const ComboboxContext = React.createContext<ComboboxContextType | undefined>(undefined)
+function ComboboxTrigger({ className, children, ...props }: ComboboxTriggerProps) {
+  const { disabled, open } = useComboboxContext()
 
-const useComboboxContext = () => {
-  const context = React.useContext(ComboboxContext)
-  if (!context) {
-    throw new Error('useComboboxContext doit être utilisé à l\'intérieur de <Combobox>')
-  }
-  return context
-}
-
-// 3. Déclencheur (Trigger)
-function ComboboxTrigger ({ className, children, ...props }: ComboboxTriggerProps) {
-  const { disabled } = useComboboxContext()
   return (
     <PopoverTrigger asChild>
       <Button
-        data-slot='combobox-trigger'
-        variant='outline'
-        role='combobox'
-        aria-expanded='false'
+        variant="outline"
+        role="combobox"
+        aria-expanded={open}
+        disabled={disabled}
         className={cn(
-          'w-full justify-between dark:hover:bg-slate-700',
-          disabled && 'opacity-50 pointer-events-none',
+          // IMPORTANT: grid garantit une largeur bornée au label
+          'w-full grid grid-cols-[1fr_auto] items-center',
+          disabled && 'opacity-50',
           className
         )}
-        disabled={disabled}
         {...props}
       >
-        {children}
-        <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
+        {/* Zone texte CONTRAINTE */}
+        <span className="min-w-0 overflow-hidden text-left">
+          <span className="block truncate">
+            {children}
+          </span>
+        </span>
+
+        {/* Icône largeur fixe */}
+        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
       </Button>
     </PopoverTrigger>
   )
 }
 
-// 4. Contenu (Content)
-function ComboboxContent ({ className, children, ...props }: ComboboxContentProps) {
+// --------------------------------------------------
+// Content
+// --------------------------------------------------
+
+function ComboboxContent({ children, ...props }: ComboboxContentProps) {
+  const { placeholder, disabled } = useComboboxContext()
+
   return (
-    <PopoverContent data-slot='combobox-content' className={cn('p-0', className)} {...props}>
+    <PopoverContent className="p-0" {...props}>
       <Command>
-        <CommandInput placeholder={useComboboxContext().placeholder} />
-        <CommandList className='max-h-[300px]'>
-          {children}
-        </CommandList>
+        <CommandInput placeholder={placeholder} disabled={disabled} />
+        <CommandList className="max-h-[300px]">{children}</CommandList>
       </Command>
     </PopoverContent>
   )
 }
 
-// 5. Contenu vide (Empty)
-function ComboboxEmpty (props: React.ComponentProps<typeof CommandEmpty>) {
-  return <CommandEmpty data-slot='combobox-empty' {...props} />
+function ComboboxEmpty(props: React.ComponentProps<typeof CommandEmpty>) {
+  return <CommandEmpty {...props} />
 }
 
-// 6. Groupe (Group)
-function ComboboxGroup (props: React.ComponentProps<typeof CommandGroup>) {
-  return <CommandGroup data-slot='combobox-group' {...props} />
+function ComboboxGroup(props: React.ComponentProps<typeof CommandGroup>) {
+  return <CommandGroup {...props} />
 }
 
-/**
- * Composant ComboboxLabel
- * Affiche le label de l'option sélectionnée au lieu de sa valeur (ID).
- * Il utilise la prop 'options' COLLECTÉE passée au contexte.
- */
-function ComboboxLabel ({ placeholder }: { placeholder?: string }) {
+// --------------------------------------------------
+// Label
+// --------------------------------------------------
+
+function ComboboxLabel({ placeholder }: { placeholder?: string }) {
   const { localValue, selectPlaceholder, options } = useComboboxContext()
-  const currentPlaceholder = placeholder || selectPlaceholder
-  
-  // Recherche du label correspondant à la valeur (value/id) sélectionnée
-  const selectedOption = options.find(option => option.value === localValue)
-  const displayLabel = selectedOption ? selectedOption.label : ''
+
+  const selected = options.find(o => o.value === localValue)
 
   return (
-    <span data-slot='combobox-label' className={cn(displayLabel ? 'text-current' : 'text-slate-500 dark:text-slate-400')}>
-      {displayLabel || currentPlaceholder}
+    <span
+      className={cn(
+        'block max-w-full truncate',
+        !selected && 'text-muted-foreground'
+      )}
+      title={selected?.label}
+    >
+      {selected?.label ?? placeholder ?? selectPlaceholder}
     </span>
   )
 }
 
-// 8. Élément (Item)
-/**
- * Composant ComboboxItem
- * L'enfant est le contenu affiché. La prop 'value' est l'ID stocké.
- * La prop 'label' est utilisée comme valeur de recherche.
- */
-function ComboboxItem ({ className, value, label, children, ...props }: ComboboxItemProps) {
-  const { localValue, setLocalValue, setOpen, onValueChange } = useComboboxContext()
-  
-  // MODIFIÉ: Détermine l'étiquette de recherche. Utilise 'label' s'il existe, sinon 'value'.
-  const searchLabel = label || value 
+// --------------------------------------------------
+// Item
+// --------------------------------------------------
 
-  const handleSelect = React.useCallback(() => {
-    // Si la valeur est déjà sélectionnée, on la désélectionne (toggle) en utilisant une chaîne vide (''), 
-    // sinon on sélectionne la nouvelle valeur. Cela gère la désélection et permet la valeur vide.
-    const newValue = localValue === value ? '' : value
-    setLocalValue(newValue)
-    if (onValueChange) {
-      onValueChange(newValue)
-    }
-    setOpen(false) // Ferme après sélection
-  }, [localValue, value, setLocalValue, onValueChange, setOpen])
+function ComboboxItem({ value, label, children, className, ...props }: ComboboxItemProps) {
+  const { localValue, setLocalValue, setOpen, onValueChange } = useComboboxContext()
+
+  const handleSelect = () => {
+    // IMPORTANT: utiliser la vraie value métier, pas la value cmdk
+    setLocalValue(value)
+    onValueChange?.(value)
+    setOpen(false)
+  }
 
   return (
     <CommandItem
-      data-slot='combobox-item'
-      key={value}
-      value={searchLabel} // MODIFIÉ: Utilise searchLabel pour la recherche/le filtrage par cmDK
+      value={label ?? value}
       onSelect={handleSelect}
-      className={cn('cursor-pointer', className)}
+      className={cn('cursor-pointer truncate', className)}
       {...props}
     >
       <Check
@@ -259,12 +258,12 @@ function ComboboxItem ({ className, value, label, children, ...props }: Combobox
           localValue === value ? 'opacity-100' : 'opacity-0'
         )}
       />
-      {children} {/* C'est le contenu affiché dans la liste */}
+      {children ?? label ?? value}
     </CommandItem>
   )
 }
 
-const ComboboxValue = ComboboxLabel 
+const ComboboxValue = ComboboxLabel
 
 export {
   Combobox,

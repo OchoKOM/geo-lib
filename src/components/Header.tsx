@@ -85,8 +85,8 @@ const commonLinks: NavLink[] = [
 
 const authenticatedLinks: NavLink[] = [
   {
-    href: '/admin/loans',
-    label: 'Gestion Prêts',
+    href: '/finances',
+    label: 'Finances',
     page: 'Admin',
     icon: <BookOpen className='w-4 h-4' />,
     requires: ['LIBRARIAN', 'ADMIN']
@@ -97,7 +97,7 @@ const authenticatedLinks: NavLink[] = [
     page: 'Admin',
     icon: <LayoutDashboard className='w-4 h-4' />,
     requires: ['ADMIN', 'AUTHOR', 'LIBRARIAN']
-  }
+  },
 ]
 
 // Fichier : components/Header.tsx

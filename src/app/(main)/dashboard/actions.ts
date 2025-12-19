@@ -8,17 +8,17 @@ import {
   EntityData,
   DashboardUser,
   DashboardBook,
-  DashboardDepartment,
-  DashboardFaculty,
-  DashboardStudyArea,
-  DashBoardAuthorProfile,
   FacultySchema,
   DepartmentSchema,
   GhostAuthorSchema,
   BookSchema,
-  UserUpdateSchema
+  UserUpdateSchema,
+  FinanceEntityData
 } from '@/lib/types'
 import { revalidatePath } from 'next/cache'
+
+// Extension des types pour inclure les finances
+type FinanceEntityType = EntityType | 'loans' | 'subscriptions' | 'payments' | 'profile' | 'author_profiles' | 'create_ghost_author'
 
 // --- TYPE DE RÉPONSE UNIFIÉ ---
 export type ActionResponse<T = null> = {
@@ -71,7 +71,7 @@ export async function getDashboardStatsAction() {
       prisma.user.findMany({
         take: 5,
         orderBy: { createdAt: 'desc' },
-        where: { role: { not: 'ADMIN' } } // On exclut les admins des "nouveaux inscrits"
+        where: { role: { not: 'ADMIN' } }
       })
     ])
 
@@ -99,35 +99,96 @@ export async function getDashboardStatsAction() {
 // ----------------------------------------------------
 // 1. LECTURE DES DONNÉES (GET)
 // ----------------------------------------------------
-export async function getDashboardDataAction(entityType: EntityType): Promise<ActionResponse<EntityData[]>> {
+export async function getDashboardDataAction(entityType: FinanceEntityType): Promise<ActionResponse<EntityData[] | FinanceEntityData[]>> {
   const auth = await checkAuthAndRole(UserRole.READER)
   if (!auth.success) return { success: false, message: auth.message }
 
   try {
-    let data: EntityData[] = []
+    let data: unknown[] = []
 
     switch (entityType) {
+      // --- SECTION FINANCES ---
+      case 'loans':
+        // Seuls les bibliothécaires et admins voient les prêts
+        if (auth.user.role !== UserRole.LIBRARIAN && auth.user.role !== UserRole.ADMIN) {
+           return { success: false, message: "Accès non autorisé aux prêts." }
+        }
+        data = await prisma.loan.findMany({
+          include: {
+            user: { select: { id: true, username: true, email: true } },
+            book: { select: { id: true, title: true } }
+          },
+          orderBy: { loanDate: 'desc' }
+        })
+        break
+
+      case 'subscriptions':
+        // Seuls les admins voient les abonnements
+        if (auth.user.role !== UserRole.ADMIN) {
+           return { success: false, message: "Accès non autorisé aux abonnements." }
+        }
+        data = await prisma.subscription.findMany({
+          include: {
+            user: { select: { id: true, username: true, email: true } }
+          },
+          orderBy: { endDate: 'asc' }
+        })
+        break
+
+      case 'payments':
+        // Seuls les admins voient les paiements
+        if (auth.user.role !== UserRole.ADMIN) {
+           return { success: false, message: "Accès non autorisé aux paiements." }
+        }
+        data = await prisma.payment.findMany({
+          include: {
+            user: { select: { id: true, username: true } },
+            loan: {
+                select: {
+                    book: {
+                        select: {
+                            title: true
+                        }
+                    }
+                }
+            }
+          },
+          orderBy: { paymentDate: 'desc' }
+        })
+        break
+
+      case 'profile':
+        // Profil de l'utilisateur connecté
+        data = await prisma.user.findMany({
+          where: { id: auth.user.id },
+          select: {
+            id: true, username: true, email: true, role: true, isSuspended: true, createdAt: true, authorProfile: true, avatarUrl: true,
+          }
+        })
+        break
+
+      // --- SECTION STANDARD ---
       case 'users':
         if (auth.user.role === UserRole.READER) {
           return { success: false, message: "Vous n'avez pas les permissions pour consulter les utilisateurs." }
         }
-        data = (await prisma.user.findMany({
+        data = await prisma.user.findMany({
           select: {
             id: true, username: true, email: true, role: true, isSuspended: true, createdAt: true, authorProfile: true, avatarUrl: true,
           },
           orderBy: { createdAt: 'desc' }
-        })) as unknown as DashboardUser[]
+        })
         break
 
       case 'author_profiles':
       case 'create_ghost_author':
-        data = (await prisma.authorProfile.findMany({
+        data = await prisma.authorProfile.findMany({
           include: { user: { select: { name: true, username: true, dateOfBirth: true } } }
-        })) as unknown as DashBoardAuthorProfile[]
+        })
         break
 
       case 'books':
-        data = (await prisma.book.findMany({
+        data = await prisma.book.findMany({
           include: {
             author: { select: { id: true, user: { select: { username: true } } } },
             department: { select: { id: true, name: true, faculty: { select: { id: true, name: true } } } },
@@ -136,35 +197,35 @@ export async function getDashboardDataAction(entityType: EntityType): Promise<Ac
             documentFile: true,
           },
           orderBy: { postedAt: 'desc' }
-        })) as DashboardBook[]
+        })
         break
 
       case 'departments':
-        data = (await prisma.department.findMany({
+        data = await prisma.department.findMany({
           include: { faculty: { select: { id: true, name: true } } },
           orderBy: { name: 'asc' }
-        })) as DashboardDepartment[]
+        })
         break
 
       case 'faculties':
-        data = (await prisma.faculty.findMany({
+        data = await prisma.faculty.findMany({
           select: { id: true, name: true, description: true },
           orderBy: { name: 'asc' }
-        })) as unknown as DashboardFaculty[]
+        })
         break
 
       case 'studyareas':
-        data = (await prisma.studyArea.findMany({
+        data = await prisma.studyArea.findMany({
           include: { books: { select: { bookId: true } } },
           orderBy: { name: 'asc' }
-        })) as unknown as DashboardStudyArea[]
+        })
         break
 
       default:
         return { success: false, message: `Type d'entité inconnu: ${entityType}` }
     }
 
-    return { success: true, data, message: `Données ${entityType} chargées.` }
+    return { success: true, data: data as EntityData[], message: `Données ${entityType} chargées.` }
   } catch (error) {
     console.error(`Erreur GET Server Action pour ${entityType}:`, error)
     return { success: false, message: 'Erreur serveur lors du chargement des données.' }
@@ -175,26 +236,91 @@ export async function getDashboardDataAction(entityType: EntityType): Promise<Ac
 // 2. CRÉATION (POST)
 // ----------------------------------------------------
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function createEntityAction(type: EntityType, data: any): Promise<ActionResponse<EntityData>> {
+export async function createEntityAction(type: FinanceEntityType, data: any): Promise<ActionResponse<EntityData>> {
   if (!type || !data) return { success: false, message: 'Données manquantes.' }
 
   let requiredRole = UserRole.LIBRARIAN as UserRole
   if (type === 'books') requiredRole = UserRole.AUTHOR
   if (type === 'users') return { success: false, message: "Utilisez l'inscription publique." }
+  if (type === 'subscriptions' || type === 'payments') requiredRole = UserRole.ADMIN
 
   const auth = await checkAuthAndRole(requiredRole)
   if (!auth.success) return { success: false, message: auth.message }
 
   try {
-    let newEntity: EntityData
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let newEntity: any
 
     switch (type) {
+      case 'loans':
+        // Création d'un prêt
+        const { userId, bookId, dueDate } = data
+        newEntity = await prisma.loan.create({
+          data: {
+            userId,
+            bookId,
+            dueDate: new Date(dueDate),
+            loanDate: new Date(),
+            isOverdue: false
+          },
+          include: {
+            user: { select: { id: true, username: true } },
+            book: { select: { id: true, title: true } }
+          }
+        })
+        break
+
+      case 'subscriptions':
+        // Création abonnement (par défaut 30 jours ou spécifié)
+        const { userId: subUserId, durationInDays } = data
+        const startDate = new Date()
+        const endDate = new Date()
+        endDate.setDate(startDate.getDate() + (parseInt(durationInDays) || 30))
+
+        newEntity = await prisma.subscription.create({
+          data: {
+            userId: subUserId,
+            startDate,
+            endDate,
+            isActive: true
+          },
+          include: {
+            user: { select: { id: true, username: true } }
+          }
+        })
+        break
+
+      case 'payments':
+        // Création d'un paiement
+        const { userId: payUserId, amount, reason, loanId } = data
+        newEntity = await prisma.payment.create({
+          data: {
+            userId: payUserId,
+            amount: parseFloat(amount),
+            reason: reason || '',
+            loanId: loanId || null
+          },
+          include: {
+            user: { select: { id: true, username: true } },
+            loan: {
+                select: {
+                    book: {
+                        select: {
+                            title: true
+                        }
+                    }
+                }
+            }
+          }
+        })
+        break
+
       case 'faculties':
-        newEntity = (await prisma.faculty.create({ data: data as FacultySchema })) as unknown as DashboardFaculty
+        newEntity = await prisma.faculty.create({ data: data as FacultySchema })
         break
 
       case 'departments':
-        newEntity = (await prisma.department.create({ data: data as DepartmentSchema })) as DashboardDepartment
+        newEntity = await prisma.department.create({ data: data as DepartmentSchema })
         break
 
       case 'create_ghost_author':
@@ -215,23 +341,23 @@ export async function createEntityAction(type: EntityType, data: any): Promise<A
           await tx.authorProfile.create({
             data: { userId: user.id, biography: ghostData.biography, dateOfDeath: ghostData.dateOfDeath ? new Date(ghostData.dateOfDeath) : null }
           })
-          return user as unknown as DashboardUser
+          return user
         })
         break
 
       case 'author_profiles':
-        const { userId, biography, dateOfDeath } = data
-        if (!userId) return { success: false, message: "UserId requis." }
+        const { userId: authorUserId, biography, dateOfDeath } = data
+        if (!authorUserId) return { success: false, message: "UserId requis." }
         
-        newEntity = (await prisma.authorProfile.create({
+        newEntity = await prisma.authorProfile.create({
           data: {
-            userId,
+            userId: authorUserId,
             biography: biography || '',
             dateOfDeath: dateOfDeath ? new Date(dateOfDeath) : null
           }
-        })) as DashBoardAuthorProfile
+        })
         
-        await prisma.user.update({ where: { id: userId }, data: { role: UserRole.AUTHOR } })
+        await prisma.user.update({ where: { id: authorUserId }, data: { role: UserRole.AUTHOR } })
         break
 
       case 'books':
@@ -239,7 +365,7 @@ export async function createEntityAction(type: EntityType, data: any): Promise<A
         const { studyAreaIds, publicationYear, ...restBookData } = bookData
         const connectStudyAreas = studyAreaIds?.map(id => ({ studyArea: { connect: { id } } })) || []
 
-        newEntity = (await prisma.book.create({
+        newEntity = await prisma.book.create({
           data: {
             ...restBookData,
             documentFile: undefined,
@@ -253,7 +379,7 @@ export async function createEntityAction(type: EntityType, data: any): Promise<A
             department: { select: { id: true, name: true } },
             studyAreas: { include: { studyArea: { select: { id: true, name: true } } } },
           }
-        })) as unknown as DashboardBook
+        })
         break
 
       default:
@@ -261,6 +387,7 @@ export async function createEntityAction(type: EntityType, data: any): Promise<A
     }
     
     revalidatePath('/dashboard')
+    revalidatePath('/finances') // Revalidation pour la nouvelle page
     return { success: true, data: newEntity, message: 'Élément créé avec succès.' }
 
   } catch (error) {
@@ -272,54 +399,70 @@ export async function createEntityAction(type: EntityType, data: any): Promise<A
 // ----------------------------------------------------
 // 3. MISE À JOUR (PATCH)
 // ----------------------------------------------------
-function cleanBookUpdateData(bookData: DashboardBook): BookSchema {
-    return {
-        title: bookData.title,
-        description: bookData.description,
-        publicationYear: new Date(bookData.postedAt).getFullYear(),
-        type: bookData.type,
-        departmentId: bookData.departmentId || "",
-        authorId: bookData.authorId || undefined,
-        studyAreaIds: bookData.studyAreas.map(sa => sa.studyArea.id),
-        documentFileId: bookData.documentFileId || undefined,
-        academicYearId: bookData.academicYearId || undefined,
-        coverImageId: bookData.coverImageId || undefined,
-    }
-}
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function updateEntityAction(type: EntityType, id: string, data: any): Promise<ActionResponse<EntityData>> {
+export async function updateEntityAction(type: FinanceEntityType, id: string, data: any): Promise<ActionResponse<EntityData>> {
   let requiredRole = UserRole.LIBRARIAN as UserRole
-  if (type === 'users') requiredRole = UserRole.ADMIN
+  if (type === 'users' || type === 'subscriptions' || type === 'payments') requiredRole = UserRole.ADMIN
   
   const auth = await checkAuthAndRole(requiredRole)
   if (!auth.success) return { success: false, message: auth.message }
 
   try {
-    let updatedEntity: EntityData
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let updatedEntity: any
 
     switch (type) {
+      case 'loans':
+        // Mise à jour (ex: retour du livre)
+        const { isReturned, ...loanData } = data
+        updatedEntity = await prisma.loan.update({
+            where: { id },
+            data: {
+                ...loanData,
+                returnDate: isReturned ? new Date() : null,
+                isOverdue: false // Si retourné, plus en retard (logique simple)
+            },
+            include: { user: true, book: true }
+        })
+        break
+
+      case 'subscriptions':
+        updatedEntity = await prisma.subscription.update({
+            where: { id },
+            data: data, // ex: isActive, endDate
+            include: { user: true }
+        })
+        break
+
+      case 'payments':
+        updatedEntity = await prisma.payment.update({
+            where: { id },
+            data: data, // ex: amount, reason, loanId
+            include: { user: true, loan: { select: { book: { select: { title: true } } } } }
+        })
+        break
+
       case 'faculties':
-        updatedEntity = (await prisma.faculty.update({ where: { id }, data })) as unknown as DashboardFaculty
+        updatedEntity = await prisma.faculty.update({ where: { id }, data })
         break
       case 'departments':
-        updatedEntity = (await prisma.department.update({ where: { id }, data })) as DashboardDepartment
+        updatedEntity = await prisma.department.update({ where: { id }, data })
         break
       case 'studyareas':
-        updatedEntity = (await prisma.studyArea.update({ where: { id }, data })) as unknown as DashboardStudyArea
+        updatedEntity = await prisma.studyArea.update({ where: { id }, data })
         break
       case 'users':
         const { role, isSuspended } = data as UserUpdateSchema
-        updatedEntity = (await prisma.user.update({
+        updatedEntity = await prisma.user.update({
           where: { id },
           data: { role, isSuspended },
           select: { id: true, username: true, email: true, role: true, isSuspended: true, createdAt: true, authorProfile: { select: { id: true } } },
-        })) as DashboardUser
+        })
         break
       case 'books':
-        const cleanData = cleanBookUpdateData(data)
+        // Logique livre existante conservée
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { studyAreaIds, publicationYear, authorId, documentFileId, departmentId, academicYearId, coverImageId, documentFile, ...restBookUpdate } = cleanData
+        const { studyAreaIds, publicationYear, authorId, documentFileId, departmentId, academicYearId, coverImageId, documentFile, ...restBookUpdate } = data
         
         await prisma.book.update({
           where: { id },
@@ -337,11 +480,11 @@ export async function updateEntityAction(type: EntityType, id: string, data: any
         if (studyAreaIds) {
           await prisma.bookStudyArea.deleteMany({ where: { bookId: id } })
           if (studyAreaIds.length > 0) {
-            await prisma.bookStudyArea.createMany({ data: studyAreaIds.map(sid => ({ bookId: id, studyAreaId: sid })) })
+            await prisma.bookStudyArea.createMany({ data: studyAreaIds.map((sid: string) => ({ bookId: id, studyAreaId: sid })) })
           }
         }
         
-        updatedEntity = (await prisma.book.findUnique({
+        updatedEntity = await prisma.book.findUnique({
           where: { id },
           include: {
             department: { select: { id: true, name: true } },
@@ -349,13 +492,14 @@ export async function updateEntityAction(type: EntityType, id: string, data: any
             studyAreas: { include: { studyArea: { select: { id: true, name: true } } } },
             documentFile: true,
           }
-        })) as unknown as DashboardBook
+        })
         break
       default: 
         return { success: false, message: `Update non supporté pour ${type}.` }
     }
     
     revalidatePath('/dashboard')
+    revalidatePath('/finances')
     return { success: true, data: updatedEntity, message: 'Mise à jour réussie.' }
   } catch (error) {
     console.error(`Erreur PATCH Action pour ${type}:`, error)
@@ -366,7 +510,7 @@ export async function updateEntityAction(type: EntityType, id: string, data: any
 // ----------------------------------------------------
 // 4. SUPPRESSION (DELETE)
 // ----------------------------------------------------
-export async function deleteEntityAction(type: EntityType, id: string): Promise<ActionResponse<null>> {
+export async function deleteEntityAction(type: FinanceEntityType, id: string): Promise<ActionResponse<null>> {
   const auth = await checkAuthAndRole(UserRole.ADMIN)
   if (!auth.success) return { success: false, message: auth.message }
 
@@ -374,6 +518,9 @@ export async function deleteEntityAction(type: EntityType, id: string): Promise<
     if (type === 'users' && id === auth.user.id) return { success: false, message: 'Auto-suppression interdite.' }
 
     switch (type) {
+      case 'loans': await prisma.loan.delete({ where: { id } }); break
+      case 'subscriptions': await prisma.subscription.delete({ where: { id } }); break
+      case 'payments': await prisma.payment.delete({ where: { id } }); break
       case 'faculties': await prisma.faculty.delete({ where: { id } }); break
       case 'departments': await prisma.department.delete({ where: { id } }); break
       case 'studyareas': await prisma.studyArea.delete({ where: { id } }); break
@@ -385,6 +532,7 @@ export async function deleteEntityAction(type: EntityType, id: string): Promise<
     }
 
     revalidatePath('/dashboard')
+    revalidatePath('/finances')
     return { success: true, message: `${type} supprimé avec succès.` }
   } catch (error) {
     console.error(`Erreur DELETE Action pour ${type}:`, error)
