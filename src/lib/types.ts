@@ -19,6 +19,7 @@ export type DashboardUser = Prisma.UserGetPayload<{
   select: {
     id: true;
     username: true;
+    name: true;
     email: true;
     role: true;
     isSuspended: true;

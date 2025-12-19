@@ -115,7 +115,7 @@ export async function getDashboardDataAction(entityType: FinanceEntityType): Pro
         }
         data = await prisma.loan.findMany({
           include: {
-            user: { select: { id: true, username: true, email: true } },
+            user: { select: { id: true, username: true, name:true, email: true } },
             book: { select: { id: true, title: true } }
           },
           orderBy: { loanDate: 'desc' }
@@ -129,7 +129,7 @@ export async function getDashboardDataAction(entityType: FinanceEntityType): Pro
         }
         data = await prisma.subscription.findMany({
           include: {
-            user: { select: { id: true, username: true, email: true } }
+            user: { select: { id: true, username: true, name:true, email: true } }
           },
           orderBy: { endDate: 'asc' }
         })
@@ -162,7 +162,7 @@ export async function getDashboardDataAction(entityType: FinanceEntityType): Pro
         data = await prisma.user.findMany({
           where: { id: auth.user.id },
           select: {
-            id: true, username: true, email: true, role: true, isSuspended: true, createdAt: true, authorProfile: true, avatarUrl: true,
+            id: true, username: true, name:true, email: true, role: true, isSuspended: true, createdAt: true, authorProfile: true, avatarUrl: true,
           }
         })
         break
@@ -174,7 +174,7 @@ export async function getDashboardDataAction(entityType: FinanceEntityType): Pro
         }
         data = await prisma.user.findMany({
           select: {
-            id: true, username: true, email: true, role: true, isSuspended: true, createdAt: true, authorProfile: true, avatarUrl: true,
+            id: true, username: true, name:true, email: true, role: true, isSuspended: true, createdAt: true, authorProfile: true, avatarUrl: true,
           },
           orderBy: { createdAt: 'desc' }
         })
@@ -255,6 +255,41 @@ export async function createEntityAction(type: FinanceEntityType, data: any): Pr
       case 'loans':
         // Création d'un prêt
         const { userId, bookId, dueDate } = data
+
+        // --- SÉCURITÉ AJOUTÉE ---
+        // 1. Vérifier l'abonnement
+        const subscription = await prisma.subscription.findUnique({
+          where: { userId: userId }
+        })
+        console.log(userId, subscription);
+        
+
+        if (!subscription) {
+          return { success: false, message: "Cet utilisateur n'a pas d'abonnement." }
+        }
+
+        if (!subscription.isActive) {
+           return { success: false, message: "L'abonnement de cet utilisateur est inactif." }
+        }
+
+        if (new Date(subscription.endDate) < new Date()) {
+           return { success: false, message: "L'abonnement de cet utilisateur a expiré." }
+        }
+
+        // 2. Vérifier si l'utilisateur a déjà ce livre en cours d'emprunt
+        const existingLoan = await prisma.loan.findFirst({
+          where: {
+            userId: userId,
+            bookId: bookId,
+            returnDate: null // Si returnDate est null, le livre n'est pas rendu
+          }
+        })
+
+        if (existingLoan) {
+          return { success: false, message: "Cet utilisateur a déjà emprunté ce livre et ne l'a pas encore rendu." }
+        }
+        // --- FIN SÉCURITÉ ---
+
         newEntity = await prisma.loan.create({
           data: {
             userId,
@@ -276,6 +311,12 @@ export async function createEntityAction(type: FinanceEntityType, data: any): Pr
         const startDate = new Date()
         const endDate = new Date()
         endDate.setDate(startDate.getDate() + (parseInt(durationInDays) || 30))
+
+        // Vérifier s'il a déjà un abonnement
+        const existingSub = await prisma.subscription.findUnique({ where: { userId: subUserId } })
+        if (existingSub) {
+             return { success: false, message: "Cet utilisateur a déjà un abonnement (actif ou inactif). Modifiez l'existant." }
+        }
 
         newEntity = await prisma.subscription.create({
           data: {
@@ -456,7 +497,7 @@ export async function updateEntityAction(type: FinanceEntityType, id: string, da
         updatedEntity = await prisma.user.update({
           where: { id },
           data: { role, isSuspended },
-          select: { id: true, username: true, email: true, role: true, isSuspended: true, createdAt: true, authorProfile: { select: { id: true } } },
+          select: { id: true, username: true, name:true, email: true, role: true, isSuspended: true, createdAt: true, authorProfile: { select: { id: true } } },
         })
         break
       case 'books':

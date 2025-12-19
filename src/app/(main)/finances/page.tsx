@@ -1,15 +1,17 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { 
   CreditCard, 
   HandCoins, 
   Plus, 
   RefreshCw, 
   Loader2,
+  Search
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { showToast } from '@/hooks/useToast'
 import { useAuth } from '@/components/AuthProvider'
@@ -25,6 +27,7 @@ export default function FinancePage() {
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState<'loans' | 'subscriptions'>('loans')
   const [loading, setLoading] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
   
   // Data State
   const [loans, setLoans] = useState<DashboardLoan[]>([])
@@ -44,6 +47,28 @@ export default function FinancePage() {
     const roles = Object.values(UserRole)
     return roles.indexOf(user.role) >= roles.indexOf(role)
   }
+  
+  // --- FILTERING (RECHERCHE) ---
+  const filteredLoans = useMemo(() => {
+    if (!searchTerm) return loans
+    const lowerTerm = searchTerm.toLowerCase()
+    return loans.filter(l => 
+      l.user.name?.toLowerCase().includes(lowerTerm) ||
+      l.user.username.toLowerCase().includes(lowerTerm) ||
+      l.user.email.toLowerCase().includes(lowerTerm) ||
+      (l.book?.title || '').toLowerCase().includes(lowerTerm)
+    )
+  }, [loans, searchTerm])
+
+  const filteredSubscriptions = useMemo(() => {
+     if (!searchTerm) return subscriptions
+     const lowerTerm = searchTerm.toLowerCase()
+     return subscriptions.filter(s => 
+      s.user.name?.toLowerCase().includes(lowerTerm) ||
+      s.user.username.toLowerCase().includes(lowerTerm) ||
+      s.user.email.toLowerCase().includes(lowerTerm)
+    )
+  }, [subscriptions, searchTerm])
 
   // --- DATA FETCHING ---
   const fetchData = useCallback(async () => {
@@ -86,6 +111,24 @@ export default function FinancePage() {
     fetchData()
   }, [fetchData])
 
+  const handleMarkReturned = async (loan: DashboardLoan) => {
+  try {
+    const res = await updateEntityAction('loans', loan.id, {
+      isReturned: true,
+    })
+
+    if (res.success) {
+      showToast('Prêt marqué comme retourné')
+      fetchData()
+    } else {
+      showToast(res.message, 'destructive')
+    }
+  } catch {
+    showToast('Erreur lors de la mise à jour', 'destructive')
+  }
+}
+
+
   // --- HANDLERS ---
   const handleCreateOrUpdate = async () => {
     if (!currentEntity) return
@@ -103,6 +146,8 @@ export default function FinancePage() {
         setIsDialogOpen(false)
         fetchData() // Refresh list
       } else {
+        console.log(res.message);
+        
         showToast(res.message, "destructive")
       }
     } catch (e) {
@@ -114,7 +159,6 @@ export default function FinancePage() {
   }
 
   const handleDelete = async (target: DeleteTarget) => {
-    if(!confirm("Êtes-vous sûr ?")) return
     setLoading(true)
     try {
       const res = await deleteEntityAction(target.type, target.id)
@@ -166,12 +210,24 @@ export default function FinancePage() {
 
       {/* CONTENU */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-6">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
             {activeTab === 'loans' ? 'Registre des Prêts' : 'Liste des Abonnements'}
           </h2>
-          <div className="flex gap-2">
-            <Button variant="outline" size="icon" onClick={fetchData} disabled={loading}>
+          
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            {/* BARRE DE RECHERCHE */}
+            <div className="relative flex-1 sm:w-64">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                <Input 
+                    placeholder={activeTab === 'loans' ? "Rechercher un prêt, un livre..." : "Rechercher un abonné..."}
+                    className="pl-9 h-10"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
+
+            <Button variant="outline" size="icon" onClick={fetchData} disabled={loading} className="shrink-0">
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </Button>
             <Button 
@@ -183,17 +239,20 @@ export default function FinancePage() {
                     })
                     setIsDialogOpen(true)
                 }}
-                className={activeTab === 'loans' ? 'bg-orange-600 hover:bg-orange-700 text-white dark:bg-[orangered]/80 dark:hover:bg-[orangered] dark:text-[#050100]' : 'bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-500 dark:hover:bg-emerald-400 dark:text-emerald-950'}
+                className={`shrink-0 ${activeTab === 'loans' ? 'bg-orange-600 hover:bg-orange-700 text-white dark:bg-[orangered]/80 dark:hover:bg-[orangered] dark:text-[#050100]' : 'bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-500 dark:hover:bg-emerald-400 dark:text-emerald-950'}`}
             >
               <Plus className="w-4 h-4 mr-2" />
-              {activeTab === 'loans' ? 'Nouveau Prêt' : 'Nouvel Abonnement'}
+              <span className="hidden sm:inline">{activeTab === 'loans' ? 'Nouveau Prêt' : 'Nouvel Abonnement'}</span>
+              <span className="sm:hidden">Nouveau</span>
             </Button>
           </div>
         </div>
 
         <FinanceTable 
-            data={activeTab === 'loans' ? loans : subscriptions}
+            data={activeTab === 'loans' ? filteredLoans : filteredSubscriptions}
             activeTab={activeTab}
+            isLoading={loading}
+            onMarkReturned={handleMarkReturned}
             onEdit={(item) => {
                 let formData: Record<string, unknown> = {}
                 if (activeTab === 'loans') {

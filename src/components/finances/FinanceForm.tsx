@@ -127,20 +127,6 @@ export function FinanceForm({
                 />
               </div>
             </div>
-
-            {isEditing && (
-              <div className="flex items-end pb-2">
-                 <label className="flex items-center gap-2 text-sm font-medium cursor-pointer bg-slate-100 dark:bg-slate-800 px-4 py-2 rounded-md border border-slate-200 dark:border-slate-700 w-full hover:bg-slate-200 transition-colors">
-                    <input
-                      type="checkbox"
-                      className="w-4 h-4 rounded text-blue-600"
-                      checked={!!loanData.returnDate}
-                      onChange={(e) => updateData('isReturned', e.target.checked)}
-                    />
-                    Marquer comme retourné
-                 </label>
-              </div>
-            )}
           </div>
         </div>
       </div>

@@ -2,7 +2,6 @@
 "use client"
 // src/hooks/useToast.ts
 import { useState, useCallback, useEffect } from 'react';
-import { uuidv4 } from 'zod';
 
 // src/hooks/useToast.ts ou src/types/toast.ts
 
@@ -15,7 +14,7 @@ export interface ToastMessage {
 }
 
 // Durée des animations et de l'affichage
-const DURATION = 3000;
+const DURATION = 5000;
 const ANIMATION_FADE_OUT = 500;
 
 // Utilisation d'un pattern de Singleton simple pour stocker l'état
