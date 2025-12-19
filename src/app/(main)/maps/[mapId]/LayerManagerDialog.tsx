@@ -79,37 +79,37 @@ export default function LayerManagerDialog ({
   onImportLayer,
   isLoadingDBLayers
 }: LayerManagerDialogProps) {
-    // Extraire les propriétés uniques pour la couche en cours d'édition
+  // Extraire les propriétés uniques pour la couche en cours d'édition
   const availableProperties = useMemo(() => {
-    if (!editingStyleLayerId) return [];
-    
+    if (!editingStyleLayerId) return []
+
     // On prend les features qui appartiennent à cette couche
     const layerFeatures = features.filter(f => {
-        const type = f.geometry?.type;
-        if(!type)  return false;
-        const layer = activeLayers.find(l => l.id === editingStyleLayerId);
-        if (!layer) return false;
-        
-        // Fallback sur le type géométrique si pas d'ID explicite
-        if (f.properties._layerId === layer.id) return true;
-        
-        // Si features n'ont pas encore d'ID de layer associé (compatibilité), on filtre par type
-        if (!f.properties._layerId) {
-            if (layer.type === 'Polygon') return type.includes('Polygon');
-            if (layer.type === 'LineString') return type.includes('LineString');
-            if (layer.type === 'Point') return type.includes('Point');
-        }
-        return false;
-    });
+      const type = f.geometry?.type
+      if (!type) return false
+      const layer = activeLayers.find(l => l.id === editingStyleLayerId)
+      if (!layer) return false
 
-    const keys = new Set<string>();
+      // Fallback sur le type géométrique si pas d'ID explicite
+      if (f.properties._layerId === layer.id) return true
+
+      // Si features n'ont pas encore d'ID de layer associé (compatibilité), on filtre par type
+      if (!f.properties._layerId) {
+        if (layer.type === 'Polygon') return type.includes('Polygon')
+        if (layer.type === 'LineString') return type.includes('LineString')
+        if (layer.type === 'Point') return type.includes('Point')
+      }
+      return false
+    })
+
+    const keys = new Set<string>()
     layerFeatures.forEach(f => {
-        Object.keys(f.properties || {}).forEach(k => {
-            if (k !== '_layerId' && k !== '_leaflet_id') keys.add(k);
-        });
-    });
-    return Array.from(keys).sort();
-  }, [editingStyleLayerId, features, activeLayers]);
+      Object.keys(f.properties || {}).forEach(k => {
+        if (k !== '_layerId' && k !== '_leaflet_id') keys.add(k)
+      })
+    })
+    return Array.from(keys).sort()
+  }, [editingStyleLayerId, features, activeLayers])
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-[900px] h-[80vh] flex flex-col p-0 overflow-hidden'>
@@ -312,174 +312,188 @@ export default function LayerManagerDialog ({
             ) : (
               <div className='space-y-6 h-full overflow-auto'>
                 <Tabs defaultValue='style'>
-                    <TabsList className="">
-                        <TabsTrigger value='style'>
-                    <Palette className='w-3 h-3 text-slate-500' />
-                    Style de la couche
-                  </TabsTrigger>
-                  <TabsTrigger value='label'>
-                    <TagIcon className='w-3 h-3 text-slate-500' />
-                    Etiquetage
-                  </TabsTrigger>
-                    </TabsList>
-                  
-                  <div className="flex-1 overflow-hidden h-full flex flex-col gap-1">
-                  <TabsContent value='style'>
-                    <div className='flex items-center justify-between'>
-                      <h3 className='font-semibold text-lg flex items-center gap-2'>
-                        <Palette className='w-5 h-5 text-slate-500' />
-                        Style de la couche
-                      </h3>
-                      <Button
-                        onClick={onStartEditing}
-                        variant='default'
-                        size='sm'
-                      >
-                        <PenTool className='w-4 h-4 mr-2' /> Éditer géométries
-                      </Button>
-                    </div>
+                  <TabsList className=''>
+                    <TabsTrigger value='style'>
+                      <Palette className='w-3 h-3 text-slate-500' />
+                      Style de la couche
+                    </TabsTrigger>
+                    <TabsTrigger value='label'>
+                      <TagIcon className='w-3 h-3 text-slate-500' />
+                      Etiquetage
+                    </TabsTrigger>
+                  </TabsList>
 
-                    {/* Style Editor Content (Identique à avant, juste nettoyé) */}
-                    {(() => {
-                      const idToEdit = editingStyleLayerId || targetLayer
-                      const layer = activeLayers.find(l => l.id === idToEdit)
-                      if (!layer) return (<div className='space-y-6 p-6 bg-slate-50 dark:bg-slate-900 rounded-xl border'>
-                        Selectionner d&apos;abord une couche
-                      </div>)
+                  <div className='flex-1 overflow-hidden h-full flex flex-col gap-1'>
+                    <TabsContent value='style'>
+                      {/* Style Editor Content (Identique à avant, juste nettoyé) */}
+                      {(() => {
+                        const idToEdit = editingStyleLayerId || targetLayer
+                        const layer = activeLayers.find(l => l.id === idToEdit)
+                        if (!layer)
+                          return (
+                            <div className='space-y-6 p-6 bg-slate-50 dark:bg-slate-900 rounded-xl border'>
+                              <div className='flex items-center justify-between'>
+                                <h3 className='font-semibold text-lg flex items-center gap-2'>
+                                  <Palette className='w-5 h-5 text-slate-500' />
+                                  Style de la couche
+                                </h3>
+                              </div>
+                              <div>Selectionner d&apos;abord une couche</div>
+                            </div>
+                          )
 
-                      return (
-                        <div className='space-y-6 p-6 bg-slate-50 dark:bg-slate-900 rounded-xl border'>
-                          <div className='grid grid-cols-2 gap-8'>
-                            <div>
-                              <Label className='text-xs font-semibold uppercase text-muted-foreground mb-3 block'>
-                                Remplissage
-                              </Label>
-                              <div className='space-y-4'>
-                                <div className='flex items-center gap-3'>
-                                  <input
-                                    type='color'
-                                    value={layer.style.fillColor}
-                                    onChange={e =>
-                                      updateLayerStyle(layer.id, {
-                                        fillColor: e.target.value
-                                      })
-                                    }
-                                    className='w-10 h-10 rounded cursor-pointer border-0 p-0'
-                                  />
-                                  <span className='text-xs font-mono'>
-                                    {layer.style.fillColor}
-                                  </span>
-                                </div>
-                                <div className='space-y-2'>
-                                  <Label className='text-xs flex justify-between'>
-                                    Opacité{' '}
-                                    {Math.round(layer.style.fillOpacity * 100)}%
-                                  </Label>
-                                  <Slider
-                                    min={0}
-                                    max={1}
-                                    step={0.05}
-                                    value={[layer.style.fillOpacity]}
-                                    onValueChange={([v]) =>
-                                      updateLayerStyle(layer.id, {
-                                        fillOpacity: v
-                                      })
-                                    }
-                                  />
+                        return (
+                          <div className='space-y-6 p-6 bg-slate-50 dark:bg-slate-900 rounded-xl border'>
+                            <div className='flex items-center justify-between'>
+                              <h3 className='font-semibold text-lg flex items-center gap-2'>
+                                <Palette className='w-5 h-5 text-slate-500' />
+                                Style de la couche
+                              </h3>
+                            </div>
+                            <div className='grid grid-cols-2 gap-8'>
+                              <div>
+                                <Label className='text-xs font-semibold uppercase text-muted-foreground mb-3 block'>
+                                  Remplissage
+                                </Label>
+                                <div className='space-y-4'>
+                                  <div className='flex items-center gap-3'>
+                                    <input
+                                      type='color'
+                                      value={layer.style.fillColor}
+                                      onChange={e =>
+                                        updateLayerStyle(layer.id, {
+                                          fillColor: e.target.value
+                                        })
+                                      }
+                                      className='w-10 h-10 rounded cursor-pointer border-0 p-0'
+                                    />
+                                    <span className='text-xs font-mono'>
+                                      {layer.style.fillColor}
+                                    </span>
+                                  </div>
+                                  <div className='space-y-2'>
+                                    <Label className='text-xs flex justify-between'>
+                                      Opacité{' '}
+                                      {Math.round(
+                                        layer.style.fillOpacity * 100
+                                      )}
+                                      %
+                                    </Label>
+                                    <Slider
+                                      min={0}
+                                      max={1}
+                                      step={0.05}
+                                      value={[layer.style.fillOpacity]}
+                                      onValueChange={([v]) =>
+                                        updateLayerStyle(layer.id, {
+                                          fillOpacity: v
+                                        })
+                                      }
+                                    />
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                            <div>
-                              <Label className='text-xs font-semibold uppercase text-muted-foreground mb-3 block'>
-                                Contour
-                              </Label>
-                              <div className='space-y-4'>
-                                <div className='flex items-center gap-3'>
-                                  <input
-                                    type='color'
-                                    value={layer.style.color}
-                                    onChange={e =>
-                                      updateLayerStyle(layer.id, {
-                                        color: e.target.value
-                                      })
-                                    }
-                                    className='w-10 h-10 rounded cursor-pointer border-0 p-0'
-                                  />
-                                  <span className='text-xs font-mono'>
-                                    {layer.style.color}
-                                  </span>
-                                </div>
-                                <div className='space-y-2'>
-                                  <Label className='text-xs flex justify-between'>
-                                    Épaisseur {layer.style.weight}px
-                                  </Label>
-                                  <Slider
-                                    min={1}
-                                    max={10}
-                                    step={1}
-                                    value={[layer.style.weight]}
-                                    onValueChange={([v]) =>
-                                      updateLayerStyle(layer.id, { weight: v })
-                                    }
-                                  />
+                              <div>
+                                <Label className='text-xs font-semibold uppercase text-muted-foreground mb-3 block'>
+                                  Contour
+                                </Label>
+                                <div className='space-y-4'>
+                                  <div className='flex items-center gap-3'>
+                                    <input
+                                      type='color'
+                                      value={layer.style.color}
+                                      onChange={e =>
+                                        updateLayerStyle(layer.id, {
+                                          color: e.target.value
+                                        })
+                                      }
+                                      className='w-10 h-10 rounded cursor-pointer border-0 p-0'
+                                    />
+                                    <span className='text-xs font-mono'>
+                                      {layer.style.color}
+                                    </span>
+                                  </div>
+                                  <div className='space-y-2'>
+                                    <Label className='text-xs flex justify-between'>
+                                      Épaisseur {layer.style.weight}px
+                                    </Label>
+                                    <Slider
+                                      min={1}
+                                      max={10}
+                                      step={1}
+                                      value={[layer.style.weight]}
+                                      onValueChange={([v]) =>
+                                        updateLayerStyle(layer.id, {
+                                          weight: v
+                                        })
+                                      }
+                                    />
+                                  </div>
                                 </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                      )
-                    })()}
-                  </TabsContent>
-                  <TabsContent value='label'>
-                    <div className="">
+                        )
+                      })()}
+                    </TabsContent>
+                    <TabsContent value='label'>
+                      {(() => {
+                        const idToEdit = editingStyleLayerId || targetLayer
+                        const layer = activeLayers.find(l => l.id === idToEdit)
 
-                    </div>
-                    {/* Parametres d'etiquetage */}
-                    {(() =>(<div className='flex items-center justify-between'>
-                      <h3 className='font-semibold text-lg flex items-center gap-2'>
-                        <TagIcon className='w-5 h-5 text-slate-500' />
-                        Etiquetage
-                      </h3>
-                    </div>))()}
+                        if (!layer)
+                          return (
+                            <div className='space-y-6 p-6 bg-slate-50 dark:bg-slate-900 rounded-xl border'>
+                              Selectionner d&apos;abord une couche
+                            </div>
+                          )
+                        {
+                          /* Section Étiquettes */
+                        }
+                        return (
+                          <div className='space-y-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg border'>
+                            <div className='flex items-center gap-2 mb-1'>
+                              <Tag className='w-4 h-4 text-blue-500' />
+                              <Label className='text-xs font-bold uppercase text-slate-500'>
+                                Étiquetage
+                              </Label>
+                            </div>
 
-                    {(() => {
-                      const idToEdit = editingStyleLayerId || targetLayer
-                      const layer = activeLayers.find(l => l.id === idToEdit)
-
-                      if (!layer) return (<div className='space-y-6 p-6 bg-slate-50 dark:bg-slate-900 rounded-xl border'>
-                        Selectionner d&apos;abord une couche
-                      </div>) 
-                      return  <div className='space-y-6 p-6 bg-slate-50 dark:bg-slate-900 rounded-xl border'>
-                        {/* Section Étiquettes */}
-                                    <div className='space-y-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg border'>
-                                        <div className='flex items-center gap-2 mb-1'>
-                                            <Tag className='w-4 h-4 text-blue-500' />
-                                            <Label className='text-xs font-bold uppercase text-slate-500'>Étiquetage</Label>
-                                        </div>
-                                        
-                                        <div className='space-y-2'>
-                                            <Label className='text-xs'>Champ à afficher comme étiquette</Label>
-                                            <Select 
-                                                value={layer.labelProperty || 'none_hidden'} 
-                                                onValueChange={(val) => updateLayerConfig(layer.id, { labelProperty: val })}
-                                            >
-                                                <SelectTrigger className="h-9 bg-white dark:bg-slate-950">
-                                                    <SelectValue placeholder="Choisir une colonne..." />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="none_hidden">-- Par défaut (Nom/ID) --</SelectItem>
-                                                    {availableProperties.map(prop => (
-                                                        <SelectItem key={prop} value={prop}>{prop}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            <p className='text-[10px] text-muted-foreground'>
-                                                Sélectionnez la colonne de données à afficher au survol ou sur la carte.
-                                            </p>
-                                        </div>
-                                    </div>
-                    </div>})()}
-                  </TabsContent>
+                            <div className='space-y-2'>
+                              <Label className='text-xs'>
+                                Champ à afficher comme étiquette
+                              </Label>
+                              <Select
+                                value={layer.labelProperty || 'none_hidden'}
+                                onValueChange={val =>
+                                  updateLayerConfig(layer.id, {
+                                    labelProperty: val
+                                  })
+                                }
+                              >
+                                <SelectTrigger className='h-9 bg-white dark:bg-slate-950'>
+                                  <SelectValue placeholder='Choisir une colonne...' />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value='none_hidden'>
+                                    -- Par défaut (Nom/ID) --
+                                  </SelectItem>
+                                  {availableProperties.map(prop => (
+                                    <SelectItem key={prop} value={prop}>
+                                      {prop}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <p className='text-[10px] text-muted-foreground'>
+                                Sélectionnez la colonne de données à afficher au
+                                survol ou sur la carte.
+                              </p>
+                            </div>
+                          </div>
+                        )
+                      })()}
+                    </TabsContent>
                   </div>
                 </Tabs>
               </div>
@@ -491,6 +505,16 @@ export default function LayerManagerDialog ({
           <Button variant='outline' onClick={() => onOpenChange(false)}>
             Fermer
           </Button>
+          {(() => {
+            const idToEdit = editingStyleLayerId || targetLayer
+            const layer = activeLayers.find(l => l.id === idToEdit)
+            if (!layer) return null
+            return (
+              <Button onClick={onStartEditing} variant='default' size='sm'>
+                <PenTool className='w-4 h-4 mr-2' /> Éditer géométries
+              </Button>
+            )
+          })()}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -9,7 +9,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Plus, Trash2, Edit, Save, X, RotateCcw, Ban } from 'lucide-react'
 import { ExtendedFeature, LayerConfig } from './map-types'
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -131,10 +131,10 @@ export default function AttributeTableDialog({
 
   return (
     // --- OVERLAY / FOND SOMBRE ---
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 transition-all duration-200">
+    <div className="fixed inset-0 z-1000 flex items-center justify-center bg-card/80 backdrop-blur-sm p-4 transition-all duration-200">
       
       {/* --- CONTENEUR DE LA MODALE --- */}
-      <div className="bg-background w-[95vw] h-[90vh] max-w-[1800px] rounded-xl shadow-2xl border border-border flex flex-col relative animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-card w-[95vw] h-[90vh] max-w-[1800px] rounded-xl shadow-2xl border border-border flex flex-col relative animate-in fade-in zoom-in-95 duration-200">
         
         {/* --- HEADER PERSONNALISÉ --- */}
         <div className="flex flex-col p-6 pb-2 border-b flex-none">
@@ -212,7 +212,7 @@ export default function AttributeTableDialog({
           {/* Conteneur de la table avec scroll interne */}
           <div className="flex-1 overflow-auto border rounded-lg bg-card">
             <Table className='relative w-full caption-bottom text-sm'>
-              <TableHeader className='sticky top-0 bg-secondary/90 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-10 shadow-sm'>
+              <TableHeader className='sticky top-0 bg-secondary/90 backdrop-blur supports-backdrop-filter:bg-background/60 z-10 shadow-sm'>
                 <TableRow>
                   <TableHead className="w-[50px] sticky left-0 z-20 bg-background border-r">ID</TableHead>
                   {columns.map(key => (
@@ -270,7 +270,7 @@ export default function AttributeTableDialog({
                               </Button>
                             </div>
                           ) : (
-                            <div className="flex justify-between items-center min-h-[28px] group">
+                            <div className="flex justify-between items-center min-h-7 group">
                                 <span className='text-sm truncate pr-2 max-w-[200px] block' title={value}>{value}</span>
                                 <Button size="icon" variant="ghost" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-all text-muted-foreground hover:text-primary" onClick={(e) => { e.stopPropagation(); handleEdit(feature.id, key, value); }}>
                                     <Edit className="w-3 h-3" />

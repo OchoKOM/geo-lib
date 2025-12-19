@@ -78,7 +78,6 @@ export default function SearchModal({
     if (!miniMapRef.current) return
     if (tileLayerRef.current) miniMapRef.current.removeLayer(tileLayerRef.current)
     
-    const darkUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
     const lightUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
     
     tileLayerRef.current = L.tileLayer(lightUrl, { maxZoom: 19 }).addTo(miniMapRef.current)
@@ -98,10 +97,12 @@ export default function SearchModal({
         const ne = searchBounds.getNorthEast()
         url += `&minLat=${sw.lat}&maxLat=${ne.lat}&minLng=${sw.lng}&maxLng=${ne.lng}`
       }
-      const data = await kyInstance.get(url).json<{ results: any }>()
+      const data = await kyInstance.get(url).json<{ results: SearchResult[] }>()
       setResults(data.results || [])
       if (!data.results?.length) showToast('Aucun résultat trouvé.')
     } catch (error) {
+  console.log(error);
+  
       showToast('Erreur réseau.', 'destructive')
     } finally {
       setIsSearching(false)
@@ -133,18 +134,19 @@ export default function SearchModal({
                   onChange={e => setQuery(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSearch()}
                 />
-                <Search className="absolute right-3 top-2.5 w-4 h-4 text-slate-400" />
+                <Search className="absolute right-3 top-2.5 w-4 h-4 text-muted-foreground max-md:hidden" />
+                <div className="md:hidden absolute right-1 top-[50%] translate-y-[-50%] p-1 text-muted-foreground cursor-pointer" onClick={handleSearch}><Search className="size-5" /></div>
               </div>
             </div>
 
-            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded text-xs text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-900">
+            <div className="max-md:hidden p-3 bg-blue-50 dark:bg-blue-900/20 rounded text-xs text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-900">
               <p className="flex items-start gap-2">
-                <MapIcon className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <MapIcon className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>Utilisez la carte pour dessiner une zone de recherche.</span>
               </p>
             </div>
 
-            <Button onClick={handleSearch} disabled={isSearching} className="w-full">
+            <Button onClick={handleSearch} disabled={isSearching} className="w-full max-md:hidden">
               {isSearching ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Search className="w-4 h-4 mr-2" />}
               Rechercher
             </Button>
@@ -159,9 +161,9 @@ export default function SearchModal({
                     className="p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer flex items-center gap-2 border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
                   >
                     {loadingResults[result.id] ? (
-                      <Loader2 className="w-4 h-4 text-blue-600 animate-spin flex-shrink-0" />
+                      <Loader2 className="w-4 h-4 text-blue-600 animate-spin shrink-0" />
                     ) : (
-                      <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                      <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
                     )}
                     <div className="min-w-0">
                       <div className="font-medium text-sm truncate">{result.name}</div>
@@ -173,9 +175,9 @@ export default function SearchModal({
             </div>
           </div>
 
-          <div className="w-full md:w-2/3 bg-slate-100 dark:bg-slate-950 relative">
+          <div className="w-full md:w-2/3 bg-slate-100 dark:bg-slate-950 relative max-md:hidden">
             <div ref={miniMapContainerRef} className="absolute inset-0 z-0" />
-            <div className="absolute top-2 right-2 z-[1000] bg-white dark:bg-slate-900 p-2 rounded shadow-md border border-slate-200 text-xs">
+            <div className="absolute top-2 right-2 z-1000 bg-white dark:bg-slate-900 p-2 rounded shadow-md border border-slate-200 text-xs">
               {searchBounds ? (
                 <div className="flex items-center gap-2 text-green-600 font-medium">
                   <Check className="w-3 h-3" /> Zone définie
