@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
@@ -14,7 +13,7 @@ import {
   UserPlus
 } from 'lucide-react'
 
-// --- 1. IMPORTS DES COMPOSANTS UI ---
+// --- 1. IMPORTS UI ---
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -29,11 +28,10 @@ import { showToast } from '@/hooks/useToast'
 import { useAuth } from '@/components/AuthProvider'
 
 // --- 2. LOGIQUE API & TYPES ---
-import kyInstance from '@/lib/ky'
+import kyInstance from '@/lib/ky' // On garde ky pour /api/auth qui reste spécifique pour l'instant
 import {
   EntityType,
   EntityData,
-  ApiResponse,
   UserRole,
   DashboardUser,
   DashboardFaculty,
@@ -44,12 +42,21 @@ import {
 } from '@/lib/types'
 import { Session } from 'lucia'
 
-// --- 3. NOUVEAUX COMjOSANTS SEPARÉS ---
+// --- 3. ACTIONS SERVEUR ---
+import { 
+  getDashboardDataAction, 
+  createEntityAction, 
+  updateEntityAction, 
+  deleteEntityAction 
+} from './actions'
+
+// --- 4. COMPOSANTS ---
 import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar'
 import { DashboardForm } from '@/components/dashboard/DashboardForm'
 import { DashboardTable } from '@/components/dashboard/DashboardTable'
 import { NAV_ITEMS, CurrentEntity, DeleteTarget } from '@/lib/dashboard-config'
 import React from 'react'
+import { cn } from '@/lib/utils'
 
 export default function DashboardPage() {
   // --- STATE UI ---
@@ -88,6 +95,10 @@ export default function DashboardPage() {
   const departments = data.departments as DashboardDepartment[]
   const studyAreas = data.studyareas as DashboardStudyArea[]
 
+  // --- CONFIG THEME ACTUEL ---
+  const activeNavItem = NAV_ITEMS.find(n => n.type === activeTab)
+  const activeTheme = activeNavItem?.theme || NAV_ITEMS[0].theme
+
   // --- HELPERS AUTORISATIONS ---
   const userRoleIndex = useMemo(
     () => (currentUser ? Object.values(UserRole).indexOf(currentUser.role) : -1),
@@ -102,12 +113,11 @@ export default function DashboardPage() {
     [currentUser, userRoleIndex]
   )
 
-  // --- API CALLS ---
+  // --- API CALLS (MIGRATION VERS SERVER ACTIONS PARTIELLE) ---
   const fetchAuthStatus = useCallback(async () => {
     try {
-      const response = await kyInstance
-        .get('/api/auth')
-        .json<{ user: DashboardUser | null; session: Session }>()
+      // On garde ky ici car c'est souvent un endpoint spécifique next-auth ou lucia
+      const response = await kyInstance.get('/api/auth').json<{ user: DashboardUser | null; session: Session }>()
       setCurrentUser(response.user)
     } catch (err) {
       console.error('Auth check failed', err)
@@ -117,13 +127,13 @@ export default function DashboardPage() {
     }
   }, [])
 
+  // Utilisation de SERVER ACTION pour le GET
   const fetchData = useCallback(async (entity: EntityType) => {
     setLoading(true)
     try {
-      const response: ApiResponse<EntityData[]> = await kyInstance
-        .get(`/api/dashboard?type=${entity}`)
-        .json()
-      if (response.success) {
+      const response = await getDashboardDataAction(entity)
+      
+      if (response.success && response.data) {
         setData(prev => ({ ...prev, [entity]: response.data }))
         if (entity === 'author_profiles') {
           setAuthorProfiles(response.data as unknown as DashBoardAuthorProfile[])
@@ -132,29 +142,27 @@ export default function DashboardPage() {
         showToast(response.message || 'Erreur de chargement', 'destructive')
       }
     } catch (err) {
-      showToast(`Erreur: ${(err as Error).message}`, 'destructive')
+      showToast(`Erreur système: ${(err as Error).message}`, 'destructive')
     } finally {
       setLoading(false)
     }
   }, [])
 
+  // Utilisation de SERVER ACTIONS pour POST / PATCH
   const handleAction = useCallback(async () => {
     if (!currentEntity) return
     setLoading(true)
 
-    const method = currentEntity.isEditing ? 'PATCH' : 'POST'
-    const payload = {
-      type: currentEntity.type,
-      id: currentEntity.isEditing ? currentEntity.id : undefined,
-      data: currentEntity.data
-    }
-
     try {
-      const response: ApiResponse<EntityData> = await kyInstance(
-        `/api/dashboard`,
-        { method, json: payload }
-      ).json()
+      let response
+      if (currentEntity.isEditing && currentEntity.id) {
+        response = await updateEntityAction(currentEntity.type, currentEntity.id, currentEntity.data)
+      } else {
+        response = await createEntityAction(currentEntity.type, currentEntity.data)
+      }
+
       if (response.success) {
+        // Rafraichissement intelligent des données liées
         if (
           currentEntity.type === 'author_profiles' ||
           currentEntity.type === 'create_ghost_author'
@@ -165,13 +173,15 @@ export default function DashboardPage() {
           await fetchData(currentEntity.type)
         }
 
+        if (['faculties', 'departments', 'studyareas'].includes(currentEntity.type)) {
+            // Mettre à jour les listes déroulantes si on touche à la structure
+            fetchData('faculties')
+            fetchData('departments')
+            fetchData('studyareas')
+        }
+
         setIsFormDialogOpen(false)
         showToast(response.message || 'Opération réussie', 'default')
-        if (['faculties', 'departments', 'studyareas'].includes(currentEntity.type)) {
-          fetchData('faculties')
-          fetchData('departments')
-          fetchData('studyareas')
-        }
       } else {
         showToast(response.message || "Erreur lors de l'opération", 'destructive')
       }
@@ -182,16 +192,14 @@ export default function DashboardPage() {
     }
   }, [currentEntity, fetchData])
 
+  // Utilisation de SERVER ACTION pour DELETE
   const handleDelete = useCallback(async () => {
     if (!deleteTarget) return
     setLoading(true)
     setIsDeleteDialogOpen(false)
 
     try {
-      const response: ApiResponse<null> = await kyInstance(`/api/dashboard`, {
-        method: 'DELETE',
-        json: { type: deleteTarget.type, id: deleteTarget.id }
-      }).json()
+      const response = await deleteEntityAction(deleteTarget.type, deleteTarget.id)
 
       if (response.success) {
         await fetchData(deleteTarget.type)
@@ -235,8 +243,8 @@ export default function DashboardPage() {
       const bk = currentEntity.data as Partial<BookSchema>
       const id = bk.documentFile ? bk.documentFile.id : null
       const name = bk.documentFile ? bk.documentFile.name : null
-      setUploadedFileId(id)
-      setUploadedFileName(name)
+      setUploadedFileId(id || null)
+      setUploadedFileName(name || null)
     } else {
       setUploadedFileId(null)
       setUploadedFileName(null)
@@ -268,10 +276,6 @@ export default function DashboardPage() {
       </div>
     )
 
-  const activeNavLabel =
-    NAV_ITEMS.find(n => n.type === activeTab)?.label || 'Tableau de bord'
-    
-
   return (
     <div className='flex h-[calc(100vh-64px)] max-h-[calc(100vh-64px)] w-full overflow-y-auto bg-slate-100 dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-200'>
       
@@ -287,8 +291,11 @@ export default function DashboardPage() {
 
       {/* 2. MAIN CONTENT AREA */}
       <div className='flex-1 flex flex-col relative h-full overflow-hidden'>
-        {/* Top Bar */}
-        <header className='bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 h-16 flex items-center justify-between px-4 shadow-sm z-10'>
+        {/* Top Bar avec COULEUR DYNAMIQUE */}
+        <header className={cn(
+            "border-b h-16 flex items-center justify-between px-4 shadow-sm z-10 transition-colors duration-300",
+            "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+        )}>
           <div className='flex items-center gap-4'>
             {!sidebarOpen && (
               <Button
@@ -299,10 +306,12 @@ export default function DashboardPage() {
                 <Menu className='w-5 h-5 text-slate-600 dark:text-slate-300' />
               </Button>
             )}
-            <h1 className='text-lg font-bold text-slate-800 dark:text-white uppercase tracking-wide flex items-center gap-2'>
-              {/* @ts-expect-error */}
-              {React.createElement(NAV_ITEMS.find(n => n.type === activeTab)?.icon)}
-              {activeNavLabel}
+            <h1 className={cn(
+                "text-lg font-bold uppercase tracking-wide flex items-center gap-2 transition-colors",
+                activeTheme.primary
+            )}>
+              {React.createElement(activeNavItem?.icon || Plus)}
+              {activeNavItem?.label || 'Tableau de bord'}
             </h1>
           </div>
 
@@ -331,7 +340,6 @@ export default function DashboardPage() {
             {activeTab === 'create_ghost_author' && isAuthorized(UserRole.LIBRARIAN) && (
               <Button
                 size='sm'
-                className=''
                 onClick={() => {
                   setCurrentEntity({
                     type: 'create_ghost_author',
@@ -350,7 +358,7 @@ export default function DashboardPage() {
                 isAuthorized(UserRole.LIBRARIAN))) && (
               <Button
                 size='sm'
-                className='bg-blue-600 hover:bg-blue-700 text-white flex gap-2 items-center'
+                className={cn("text-white flex gap-2 items-center transition-colors", activeTheme.primary.replace('text-', 'bg-').replace('dark:text-', 'dark:bg-').split(' ')[0], "hover:opacity-90")}
                 onClick={() => {
                   setCurrentEntity({
                     type: activeTab,
@@ -372,6 +380,7 @@ export default function DashboardPage() {
           <DashboardTable
             data={data[activeTab] || []}
             activeTab={activeTab}
+            activeTheme={activeTheme}
             searchTerm={searchTerm}
             loading={loading}
             currentUser={currentUser}
@@ -417,7 +426,7 @@ export default function DashboardPage() {
       <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
         <DialogContent className='sm:max-w-[600px] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100'>
           <DialogHeader>
-            <DialogTitle className='flex items-center gap-2 text-blue-600 dark:text-blue-400'>
+            <DialogTitle className={cn('flex items-center gap-2', activeTheme.primary)}>
               {currentEntity?.isEditing ? (
                 <Edit className='w-5 h-5' />
               ) : (
@@ -460,9 +469,8 @@ export default function DashboardPage() {
             >
               Annuler
             </Button>
-            {/* Masquer le bouton Enregistrer si on est en train de créer une zone d'étude (redirection map) */}
             {!(currentEntity?.type === 'studyareas' && !currentEntity.isEditing) && (
-              <Button onClick={handleAction} disabled={loading}>
+              <Button onClick={handleAction} disabled={loading} className={cn(activeTheme.primary.replace('text-', 'bg-').split(' ')[0], "text-white hover:opacity-90")}>
                 {loading && <Loader2 className='w-4 h-4 animate-spin' />}
                 Enregistrer
               </Button>

@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { EntityType, DashboardUser, UserRole } from '@/lib/types'
 import { NAV_ITEMS } from '@/lib/dashboard-config'
 import React from 'react'
+import { cn } from '@/lib/utils'
 
 interface DashboardSidebarProps {
   sidebarOpen: boolean
@@ -24,11 +25,10 @@ export function DashboardSidebar({
 }: DashboardSidebarProps) {
   return (
     <div
-      className={`flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 transition-all duration-300 z-20 shadow-xl ${
-        sidebarOpen
-          ? 'w-72 translate-x-0'
-          : 'w-0 -translate-x-full opacity-0 overflow-hidden'
-      }`}
+      className={cn(
+        "flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 transition-all duration-300 z-20 shadow-xl h-full",
+        sidebarOpen ? 'w-72 translate-x-0' : 'w-0 -translate-x-full opacity-0 overflow-hidden'
+      )}
     >
       {/* Header Sidebar */}
       <div className='p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col gap-3 bg-slate-50 dark:bg-slate-900'>
@@ -70,36 +70,43 @@ export function DashboardSidebar({
           if (item.type === 'users' && !isAuthorized(UserRole.LIBRARIAN))
             return null
           const isActive = activeTab === item.type
+          
           return (
             <div
               key={item.type}
               onClick={() => setActiveTab(item.type)}
-              className={`flex items-center gap-3 p-3 rounded-lg transition-all cursor-pointer border-2 group ${
-                isActive
-                  ? 'bg-blue-50/70 dark:bg-blue-900/20 border-blue-500 shadow-sm'
-                  : 'hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:border-slate-200 dark:hover:border-slate-700'
-              }`}
+              className={cn(
+                "flex items-center gap-3 p-3 rounded-lg transition-all cursor-pointer border-2 group",
+                isActive 
+                  ? cn(item.theme.bg, item.theme.border, "shadow-sm")
+                  : "hover:bg-slate-50 dark:hover:bg-slate-800 border-transparent hover:border-slate-200 dark:hover:border-slate-700"
+              )}
             >
               <div
-                className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors ${
+                className={cn(
+                  "flex items-center justify-center w-8 h-8 rounded-full transition-colors",
                   isActive
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200'
-                }`}
+                    ? "bg-white dark:bg-slate-950 shadow-sm " + item.theme.primary
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200"
+                )}
               >
-                {React.createElement(item.icon)}
+                {React.createElement(item.icon, { className: "w-5 h-5" })}
               </div>
               <div className='flex-1'>
                 <p
-                  className={`text-sm font-medium ${
+                  className={cn(
+                    "text-sm font-medium transition-colors",
                     isActive
-                      ? 'text-blue-900 dark:text-blue-300'
-                      : 'text-slate-700 dark:text-slate-300'
-                  }`}
+                      ? "text-slate-900 dark:text-white"
+                      : "text-slate-700 dark:text-slate-300"
+                  )}
                 >
                   {item.label}
                 </p>
-                <p className='text-[10px] text-slate-400 dark:text-slate-500'>
+                <p className={cn(
+                    "text-[10px] transition-colors",
+                    isActive ? item.theme.primary.replace('text-', 'text-opacity-80 ') : "text-slate-400 dark:text-slate-500"
+                )}>
                   Gérer les {item.label.toLowerCase()}
                 </p>
               </div>
@@ -111,7 +118,7 @@ export function DashboardSidebar({
       {/* Footer Sidebar */}
       <div className='p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-center'>
         <p className='text-xs text-slate-400 dark:text-slate-600'>
-          GeoLibrary Admin v1.0
+          GeoLibrary Admin v1.2
         </p>
       </div>
     </div>

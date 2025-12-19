@@ -8,11 +8,13 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { EntityType, EntityData, UserRole, DashboardUser } from '@/lib/types'
-import { DeleteTarget } from '@/lib/dashboard-config'
+import { DeleteTarget, ColorTheme } from '@/lib/dashboard-config'
+import { cn } from '@/lib/utils'
 
 interface DashboardTableProps {
   data: EntityData[]
   activeTab: EntityType
+  activeTheme: ColorTheme
   searchTerm: string
   loading: boolean
   currentUser: DashboardUser | null
@@ -25,6 +27,7 @@ interface DashboardTableProps {
 export function DashboardTable({
   data,
   activeTab,
+  activeTheme,
   searchTerm,
   loading,
   currentUser,
@@ -42,7 +45,7 @@ export function DashboardTable({
     <div className='bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm overflow-hidden transition-colors h-full flex flex-col'>
       <div className='overflow-x-auto flex-1'>
         <table className='relative min-w-full divide-y divide-slate-100 dark:divide-slate-800'>
-          <thead className='bg-slate-50 dark:bg-slate-800/50 sticky top-0'>
+          <thead className='bg-slate-50 dark:bg-slate-800/50 sticky top-0 z-10'>
             <tr>
               <th className='px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider'>
                 ID / Nom
@@ -66,7 +69,7 @@ export function DashboardTable({
                   className='px-6 py-10 text-center text-slate-500 dark:text-slate-400'
                 >
                   {loading ? (
-                    <Loader2 className='w-6 h-6 animate-spin mx-auto text-blue-600' />
+                    <Loader2 className={cn("w-6 h-6 animate-spin mx-auto", activeTheme.primary)} />
                   ) : (
                     'Aucune donnée trouvée.'
                   )}
@@ -94,20 +97,21 @@ export function DashboardTable({
                     <td className='px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300 truncate max-w-3xs'>
                       {activeTab === 'users' && (
                         <Badge
-                          variant={
+                          className={cn(
                             /* @ts-expect-error dynamic */
-                            item.role === 'ADMIN' ? 'destructive' : 'secondary'
-                          }
+                            item.role === 'ADMIN' ? 'bg-red-100 text-red-800 border-red-200' : 'bg-slate-100 text-slate-800 border-slate-200'
+                          )}
+                          variant="outline"
                         >
-                          {/* @ts-expect-error dynamic */}
-                          {item.role}
+                          {/* @ts-expect-error dynamic */
+                          item.role}
                         </Badge>
                       )}
                       {activeTab === 'books' && (
                         <span className='flex items-center gap-2'>
                           <Badge
                             variant='outline'
-                            className='dark:border-slate-600 dark:text-slate-300'
+                            className={cn('dark:border-slate-600 dark:text-slate-300', activeTheme.badge)}
                           >
                             {/* @ts-expect-error dynamic */}
                             {item.type}
@@ -166,7 +170,11 @@ export function DashboardTable({
                           {item.studyAreas.map((sa, i: number) => (
                             <div
                               key={i}
-                              className='flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded-md'
+                              className={cn(
+                                'flex items-center gap-1 text-xs px-2 py-1 rounded-md',
+                                activeTheme.bg,
+                                activeTheme.primary
+                              )}
                             >
                               <MapPin className='w-3 h-3' />
                               <span className='truncate'>{sa.studyArea?.name}</span>
@@ -200,7 +208,10 @@ export function DashboardTable({
                             <Button
                               variant='ghost'
                               size='icon'
-                              className='h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-slate-800 max-md:text-blue-700 max-md:bg-blue-50 dark:max-md:bg-slate-800'
+                              className={cn(
+                                'h-8 w-8 hover:bg-slate-100 dark:hover:bg-slate-800',
+                                activeTheme.primary
+                              )}
                               onClick={() => onEdit(item)}
                             >
                               <Edit className='w-4 h-4' />
