@@ -1,5 +1,5 @@
 import { EntityType, EntityData, UserRole } from '@/lib/types'
-import { Book, Building2, GraduationCap, Layers, UserPlus, Users, LucideIcon } from 'lucide-react'
+import { Book, Building2, GraduationCap, Layers, UserPlus, Users, LucideIcon, LayoutDashboard } from 'lucide-react'
 
 // Types locaux pour la gestion de l'état du dashboard
 export type CurrentEntity = {
@@ -24,7 +24,7 @@ export interface ColorTheme {
 }
 
 export interface NavItem {
-  type: EntityType
+  type: EntityType | 'overview' // 'overview' ajouté pour la page d'accueil
   label: string
   icon: LucideIcon
   role: UserRole
@@ -33,6 +33,19 @@ export interface NavItem {
 
 // Configuration de la navigation avec thèmes
 export const NAV_ITEMS: NavItem[] = [
+  {
+    type: 'overview',
+    label: "Vue d'ensemble",
+    icon: LayoutDashboard,
+    role: UserRole.READER, // Accessible à tous les connectés
+    theme: {
+      primary: 'text-slate-800 dark:text-slate-100',
+      bg: 'bg-slate-100 dark:bg-slate-800',
+      border: 'border-slate-300 dark:border-slate-700',
+      hover: 'hover:bg-slate-100 dark:hover:bg-slate-800',
+      badge: 'bg-slate-200 text-slate-900 dark:bg-slate-800 dark:text-white'
+    }
+  },
   {
     type: 'books',
     label: 'Travaux & Livres',

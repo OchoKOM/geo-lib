@@ -10,7 +10,8 @@ import {
   AlertCircle,
   Ban,
   Edit,
-  UserPlus
+  ChevronRight,
+  LayoutDashboard
 } from 'lucide-react'
 
 // --- 1. IMPORTS UI ---
@@ -28,7 +29,7 @@ import { showToast } from '@/hooks/useToast'
 import { useAuth } from '@/components/AuthProvider'
 
 // --- 2. LOGIQUE API & TYPES ---
-import kyInstance from '@/lib/ky' // On garde ky pour /api/auth qui reste spécifique pour l'instant
+import kyInstance from '@/lib/ky' 
 import {
   EntityType,
   EntityData,
@@ -38,7 +39,8 @@ import {
   DashboardDepartment,
   DashboardStudyArea,
   DashBoardAuthorProfile,
-  BookSchema
+  BookSchema,
+  DashboardStats
 } from '@/lib/types'
 import { Session } from 'lucia'
 
@@ -47,13 +49,15 @@ import {
   getDashboardDataAction, 
   createEntityAction, 
   updateEntityAction, 
-  deleteEntityAction 
+  deleteEntityAction,
+  getDashboardStatsAction
 } from './actions'
 
 // --- 4. COMPOSANTS ---
 import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar'
 import { DashboardForm } from '@/components/dashboard/DashboardForm'
 import { DashboardTable } from '@/components/dashboard/DashboardTable'
+import { DashboardOverview } from '@/components/dashboard/DashboardOverview'
 import { NAV_ITEMS, CurrentEntity, DeleteTarget } from '@/lib/dashboard-config'
 import React from 'react'
 import { cn } from '@/lib/utils'
@@ -61,7 +65,7 @@ import { cn } from '@/lib/utils'
 export default function DashboardPage() {
   // --- STATE UI ---
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [activeTab, setActiveTab] = useState<EntityType>('books')
+  const [activeTab, setActiveTab] = useState<EntityType | 'overview'>('overview')
   const [searchTerm, setSearchTerm] = useState('')
 
   // --- STATE DATA ---
@@ -74,6 +78,7 @@ export default function DashboardPage() {
     author_profiles: [],
     create_ghost_author: []
   })
+  const [stats, setStats] = useState<DashboardStats | null>(null)
   const [authorProfiles, setAuthorProfiles] = useState<DashBoardAuthorProfile[]>([])
   const { user } = useAuth()
   const dashboardUser = user as DashboardUser | null
@@ -113,10 +118,9 @@ export default function DashboardPage() {
     [currentUser, userRoleIndex]
   )
 
-  // --- API CALLS (MIGRATION VERS SERVER ACTIONS PARTIELLE) ---
+  // --- API CALLS ---
   const fetchAuthStatus = useCallback(async () => {
     try {
-      // On garde ky ici car c'est souvent un endpoint spécifique next-auth ou lucia
       const response = await kyInstance.get('/api/auth').json<{ user: DashboardUser | null; session: Session }>()
       setCurrentUser(response.user)
     } catch (err) {
@@ -127,28 +131,30 @@ export default function DashboardPage() {
     }
   }, [])
 
-  // Utilisation de SERVER ACTION pour le GET
-  const fetchData = useCallback(async (entity: EntityType) => {
+  const fetchData = useCallback(async (entity: EntityType | 'overview') => {
     setLoading(true)
     try {
-      const response = await getDashboardDataAction(entity)
-      
-      if (response.success && response.data) {
-        setData(prev => ({ ...prev, [entity]: response.data }))
-        if (entity === 'author_profiles') {
-          setAuthorProfiles(response.data as unknown as DashBoardAuthorProfile[])
-        }
+      if (entity === 'overview') {
+        const response = await getDashboardStatsAction()
+        // @ts-expect-error dynamic
+        if (response.success) setStats(response.data)
       } else {
-        showToast(response.message || 'Erreur de chargement', 'destructive')
+        const response = await getDashboardDataAction(entity)
+        if (response.success && response.data) {
+          setData(prev => ({ ...prev, [entity]: response.data }))
+          if (entity === 'author_profiles') {
+            setAuthorProfiles(response.data as unknown as DashBoardAuthorProfile[])
+          }
+        }
       }
     } catch (err) {
-      showToast(`Erreur système: ${(err as Error).message}`, 'destructive')
+      showToast(`Erreur: ${(err as Error).message}`, 'destructive')
     } finally {
       setLoading(false)
     }
   }, [])
 
-  // Utilisation de SERVER ACTIONS pour POST / PATCH
+  // --- ACTIONS HANDLERS ---
   const handleAction = useCallback(async () => {
     if (!currentEntity) return
     setLoading(true)
@@ -162,24 +168,14 @@ export default function DashboardPage() {
       }
 
       if (response.success) {
-        // Rafraichissement intelligent des données liées
-        if (
-          currentEntity.type === 'author_profiles' ||
-          currentEntity.type === 'create_ghost_author'
-        ) {
-          await fetchData('users')
-          await fetchData('author_profiles')
-        } else {
-          await fetchData(currentEntity.type)
-        }
-
         if (['faculties', 'departments', 'studyareas'].includes(currentEntity.type)) {
-            // Mettre à jour les listes déroulantes si on touche à la structure
             fetchData('faculties')
             fetchData('departments')
             fetchData('studyareas')
         }
-
+        // Toujours recharger l'entité courante
+        if (activeTab !== 'overview') fetchData(activeTab)
+        
         setIsFormDialogOpen(false)
         showToast(response.message || 'Opération réussie', 'default')
       } else {
@@ -190,9 +186,8 @@ export default function DashboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentEntity, fetchData])
+  }, [currentEntity, fetchData, activeTab])
 
-  // Utilisation de SERVER ACTION pour DELETE
   const handleDelete = useCallback(async () => {
     if (!deleteTarget) return
     setLoading(true)
@@ -200,15 +195,9 @@ export default function DashboardPage() {
 
     try {
       const response = await deleteEntityAction(deleteTarget.type, deleteTarget.id)
-
       if (response.success) {
-        await fetchData(deleteTarget.type)
+        if (activeTab !== 'overview') fetchData(activeTab)
         showToast(response.message || 'Suppression réussie', 'default')
-        if (['faculties', 'departments', 'studyareas'].includes(deleteTarget.type)) {
-          fetchData('faculties')
-          fetchData('departments')
-          fetchData('studyareas')
-        }
       } else {
         showToast(response.message || 'Erreur de suppression', 'destructive')
       }
@@ -218,7 +207,7 @@ export default function DashboardPage() {
       setLoading(false)
       setDeleteTarget(null)
     }
-  }, [deleteTarget, fetchData])
+  }, [deleteTarget, fetchData, activeTab])
 
   // --- EFFECTS ---
   useEffect(() => {
@@ -228,13 +217,13 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!isAuthLoading && currentUser) {
       fetchData(activeTab)
+      // Charger les dépendances pour les formulaires si nécessaire
       if (activeTab === 'books') {
         fetchData('faculties')
         fetchData('departments')
         fetchData('studyareas')
         fetchData('author_profiles')
       }
-      if (activeTab === 'departments') fetchData('faculties')
     }
   }, [activeTab, fetchData, isAuthLoading, currentUser])
 
@@ -263,21 +252,14 @@ export default function DashboardPage() {
       <div className='h-screen w-full flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4'>
         <div className='bg-white dark:bg-slate-900 p-8 rounded-lg shadow-xl text-center max-w-md border border-slate-200 dark:border-slate-800'>
           <Ban className='w-12 h-12 text-red-500 mx-auto mb-4' />
-          <h1 className='text-xl font-bold text-slate-800 dark:text-white mb-2'>
-            Accès Refusé
-          </h1>
-          <p className='text-slate-500 dark:text-slate-400 mb-6'>
-            Vous devez être connecté pour accéder au tableau de bord administratif.
-          </p>
-          <Button className='w-full bg-blue-600 hover:bg-blue-700 text-white'>
-            Se connecter
-          </Button>
+          <h1 className='text-xl font-bold text-slate-800 dark:text-white mb-2'>Accès Refusé</h1>
+          <Button className='w-full bg-blue-600 hover:bg-blue-700 text-white'>Se connecter</Button>
         </div>
       </div>
     )
 
   return (
-    <div className='flex h-[calc(100vh-64px)] max-h-[calc(100vh-64px)] w-full overflow-y-auto bg-slate-100 dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-200'>
+    <div className='flex max-h-[calc(100vh-64px)] h-[calc(100vh-64px)] w-full bg-slate-50 dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-200 overflow-hidden'>
       
       {/* 1. SIDEBAR */}
       <DashboardSidebar
@@ -290,156 +272,159 @@ export default function DashboardPage() {
       />
 
       {/* 2. MAIN CONTENT AREA */}
-      <div className='flex-1 flex flex-col relative h-full overflow-hidden'>
-        {/* Top Bar avec COULEUR DYNAMIQUE */}
-        <header className={cn(
-            "border-b h-16 flex items-center justify-between px-4 shadow-sm z-10 transition-colors duration-300",
-            "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
-        )}>
+      <div className='relative flex-1 flex flex-col h-full overflow-hidden'>
+        
+        {/* TOP BAR */}
+        <header className='sticky top-0 h-16 flex items-center justify-between px-6 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0'>
           <div className='flex items-center gap-4'>
             {!sidebarOpen && (
-              <Button
-                variant='ghost'
-                size='icon'
-                onClick={() => setSidebarOpen(true)}
-              >
+              <Button variant='ghost' size='icon' onClick={() => setSidebarOpen(true)}>
                 <Menu className='w-5 h-5 text-slate-600 dark:text-slate-300' />
               </Button>
             )}
-            <h1 className={cn(
-                "text-lg font-bold uppercase tracking-wide flex items-center gap-2 transition-colors",
-                activeTheme.primary
-            )}>
-              {React.createElement(activeNavItem?.icon || Plus)}
-              {activeNavItem?.label || 'Tableau de bord'}
-            </h1>
+            
+            {/* Breadcrumb visuel */}
+            <div className='flex items-center text-sm text-slate-500 dark:text-slate-400'>
+              <div className='flex items-center gap-1 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer' onClick={() => setActiveTab('overview')}>
+                <LayoutDashboard className='w-4 h-4' />
+                <span className='hidden sm:inline'>Tableau de bord</span>
+              </div>
+              {activeTab !== 'overview' && (
+                <>
+                  <ChevronRight className='w-4 h-4 mx-1 text-slate-300' />
+                  <span className={cn('font-medium', activeTheme.primary)}>{activeNavItem?.label}</span>
+                </>
+              )}
+            </div>
           </div>
 
-          <div className='flex items-center gap-2'>
-            <div className='relative hidden md:block'>
-              <Search className='absolute left-2.5 top-2.5 h-4 w-4 text-slate-400 dark:text-slate-500' />
-              <Input
-                placeholder='Rechercher...'
-                className='pl-9 w-64 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus-visible:ring-blue-500 dark:text-white dark:placeholder:text-slate-500'
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-              />
-            </div>
+          <div className='flex items-center gap-3'>
+            {activeTab !== 'overview' && (
+              <div className='relative hidden md:block'>
+                <Search className='absolute left-2.5 top-2.5 h-4 w-4 text-slate-400' />
+                <Input
+                  placeholder='Filtrer...'
+                  className='pl-9 w-64 bg-slate-50 border-slate-200 focus:bg-white transition-all dark:bg-slate-800 dark:border-slate-700'
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                />
+              </div>
+            )}
+            
             <Button
               variant='outline'
-              size='sm'
-              onClick={() => {
-                fetchData(activeTab)
-              }}
+              size='icon'
+              onClick={() => fetchData(activeTab)}
               disabled={loading}
-              className='flex gap-2 items-center dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'
+              title="Rafraîchir"
+              className='text-slate-500'
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              <span className='hidden sm:inline'>Actualiser</span>
+              <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
             </Button>
-            {activeTab === 'create_ghost_author' && isAuthorized(UserRole.LIBRARIAN) && (
+
+            {/* BOUTON D'ACTION PRINCIPAL */}
+            {activeTab !== 'overview' && activeTab !== 'users' && (
               <Button
                 size='sm'
+                className={cn(
+                  "text-white shadow-lg shadow-blue-500/20 transition-all hover:scale-105", 
+                  activeTheme.primary.replace('text-', 'bg-').split(' ')[0]
+                )}
                 onClick={() => {
                   setCurrentEntity({
-                    type: 'create_ghost_author',
-                    // @ts-expect-error dynamic
-                    data: { id: '', name: '', biography: '' },
-                    isEditing: false
-                  })
-                  setIsFormDialogOpen(true)
-                }}
-              >
-                <UserPlus className='w-4 h-4' /> <span className='hidden sm:inline'>Auteur</span>
-              </Button>
-            )}
-            {((activeTab === 'books' && isAuthorized(UserRole.AUTHOR)) ||
-              (['faculties', 'departments', 'studyareas'].includes(activeTab) &&
-                isAuthorized(UserRole.LIBRARIAN))) && (
-              <Button
-                size='sm'
-                className={cn("text-white flex gap-2 items-center transition-colors", activeTheme.primary.replace('text-', 'bg-').replace('dark:text-', 'dark:bg-').split(' ')[0], "hover:opacity-90")}
-                onClick={() => {
-                  setCurrentEntity({
-                    type: activeTab,
+                    type: activeTab as EntityType,
                     data: {} as unknown as EntityData,
                     isEditing: false
                   })
                   setIsFormDialogOpen(true)
                 }}
               >
-                <Plus className='w-4 h-4' />
-                <span className='hidden sm:inline'>Nouveau</span>
+                <Plus className='w-4 h-4 mr-2' />
+                Nouveau
               </Button>
             )}
           </div>
         </header>
 
-        {/* Data Content */}
-        <main className='flex-1 overflow-auto p-4 bg-slate-100 dark:bg-slate-950 relative'>
-          <DashboardTable
-            data={data[activeTab] || []}
-            activeTab={activeTab}
-            activeTheme={activeTheme}
-            searchTerm={searchTerm}
-            loading={loading}
-            currentUser={currentUser}
-            isAuthorized={isAuthorized}
-            onEdit={(item) => {
-               const entityToEdit = { ...item }
-               if (activeTab === 'books') {
-                 /* @ts-expect-error dynamic */
-                 entityToEdit.studyAreaIds = item.studyAreas?.map(
-                     (s: { studyArea: { id: string } }) => s.studyArea.id
-                   ) || []
-                 /* @ts-expect-error dynamic */
-                 entityToEdit.publicationYear = new Date(item.postedAt)
-                 /* @ts-expect-error dynamic */
-                 entityToEdit.type = item.type
-               }
-               setCurrentEntity({
-                 type: activeTab,
-                 data: entityToEdit,
-                 isEditing: true,
-                 id: item.id
-               })
-               setIsFormDialogOpen(true)
-            }}
-            onDelete={(target) => {
-              setDeleteTarget(target)
-              setIsDeleteDialogOpen(true)
-            }}
-            onCreateAuthor={(userId) => {
-              setCurrentEntity({
-                type: 'author_profiles',
-                // @ts-expect-error dynamic
-                data: { userId },
-                isEditing: false
-              })
-              setIsFormDialogOpen(true)
-            }}
-          />
+        {/* CONTENT SCROLLABLE */}
+        <main className='flex-1 overflow-y-auto p-6 bg-slate-50/50 dark:bg-slate-950 max-h-full'>
+          <div className='max-w-7xl mx-auto'>
+            
+            {/* Titre de Section Dynamique */}
+            <div className="mb-8">
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                {activeNavItem?.label}
+              </h1>
+              <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">
+                {activeTab === 'overview' 
+                  ? 'Bienvenue sur votre espace de gestion. Voici ce qui se passe aujourd\'hui.'
+                  : `Gérez la liste des ${activeNavItem?.label.toLowerCase()} enregistrés.`
+                }
+              </p>
+            </div>
+
+            {activeTab === 'overview' ? (
+              <DashboardOverview 
+                stats={stats} 
+                loading={loading} 
+                onNavigate={setActiveTab} 
+              />
+            ) : (
+              <DashboardTable
+                data={data[activeTab as EntityType] || []}
+                activeTab={activeTab as EntityType}
+                activeTheme={activeTheme}
+                searchTerm={searchTerm}
+                loading={loading}
+                currentUser={currentUser}
+                isAuthorized={isAuthorized}
+                onEdit={(item) => {
+                   const entityToEdit = { ...item }
+                   if (activeTab === 'books') {
+                     /* @ts-expect-error dynamic */
+                     entityToEdit.studyAreaIds = item.studyAreas?.map((s) => s.studyArea.id) || []
+                     /* @ts-expect-error dynamic */
+                     entityToEdit.publicationYear = new Date(item.postedAt)
+                     /* @ts-expect-error dynamic */
+                     entityToEdit.type = item.type
+                   }
+                   setCurrentEntity({
+                     type: activeTab as EntityType,
+                     data: entityToEdit,
+                     isEditing: true,
+                     id: item.id
+                   })
+                   setIsFormDialogOpen(true)
+                }}
+                onDelete={(target) => {
+                  setDeleteTarget(target)
+                  setIsDeleteDialogOpen(true)
+                }}
+                onCreateAuthor={(userId) => {
+                  setCurrentEntity({
+                    type: 'author_profiles',
+                    // @ts-expect-error dynamic
+                    data: { userId },
+                    isEditing: false
+                  })
+                  setIsFormDialogOpen(true)
+                }}
+              />
+            )}
+          </div>
         </main>
       </div>
 
-      {/* --- DIALOGUES --- */}
+      {/* --- DIALOGUES (MODALS) --- */}
       <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
-        <DialogContent className='sm:max-w-[600px] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100'>
+        <DialogContent className='sm:max-w-[600px] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 shadow-2xl'>
           <DialogHeader>
-            <DialogTitle className={cn('flex items-center gap-2', activeTheme.primary)}>
-              {currentEntity?.isEditing ? (
-                <Edit className='w-5 h-5' />
-              ) : (
-                <Plus className='w-5 h-5' />
-              )}
-              {currentEntity?.type === 'author_profiles'
-                ? 'Créer un profil auteur'
-                : `${currentEntity?.isEditing ? 'Modifier' : 'Ajouter'} ${
-                    NAV_ITEMS.find(n => n.type === currentEntity?.type)?.label || ""
-                  }`}
+            <DialogTitle className={cn('flex items-center gap-2 text-xl', activeTheme.primary)}>
+              {currentEntity?.isEditing ? <Edit className='w-5 h-5' /> : <Plus className='w-5 h-5' />}
+              {currentEntity?.isEditing ? 'Modifier' : 'Ajouter'} {NAV_ITEMS.find(n => n.type === currentEntity?.type)?.label}
             </DialogTitle>
             <DialogDescription className='dark:text-slate-400'>
-              Remplissez les informations ci-dessous pour mettre à jour la base de données.
+              Modification en temps réel de la base de données.
             </DialogDescription>
           </DialogHeader>
 
@@ -461,17 +446,13 @@ export default function DashboardPage() {
             )}
           </div>
 
-          <DialogFooter>
-            <Button
-              variant='outline'
-              onClick={() => setIsFormDialogOpen(false)}
-              disabled={loading}
-            >
+          <DialogFooter className="gap-2">
+            <Button variant='outline' onClick={() => setIsFormDialogOpen(false)} disabled={loading}>
               Annuler
             </Button>
             {!(currentEntity?.type === 'studyareas' && !currentEntity.isEditing) && (
               <Button onClick={handleAction} disabled={loading} className={cn(activeTheme.primary.replace('text-', 'bg-').split(' ')[0], "text-white hover:opacity-90")}>
-                {loading && <Loader2 className='w-4 h-4 animate-spin' />}
+                {loading && <Loader2 className='w-4 h-4 animate-spin mr-2' />}
                 Enregistrer
               </Button>
             )}
@@ -490,18 +471,9 @@ export default function DashboardPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant='outline'
-              onClick={() => setIsDeleteDialogOpen(false)}
-            >
-              Annuler
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={handleDelete}
-              disabled={loading}
-            >
-              {loading ? 'Suppression...' : 'Confirmer'}
+            <Button variant='outline' onClick={() => setIsDeleteDialogOpen(false)}>Annuler</Button>
+            <Button variant='destructive' onClick={handleDelete} disabled={loading}>
+              {loading ? '...' : 'Confirmer'}
             </Button>
           </DialogFooter>
         </DialogContent>

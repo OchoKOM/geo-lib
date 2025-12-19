@@ -36,13 +36,64 @@ async function checkAuthAndRole(requiredRole: UserRole): Promise<{ user: Dashboa
   }
 
   const roles = Object.values(UserRole)
-  // On compare les index pour savoir si le rôle utilisateur est suffisant
-  // (ex: ADMIN > LIBRARIAN > AUTHOR > READER)
   if (roles.indexOf(user.role) < roles.indexOf(requiredRole)) {
     return { success: false, message: `Accès refusé. Rôle requis: ${requiredRole}` }
   }
 
   return { user: user as unknown as DashboardUser, success: true }
+}
+
+// ----------------------------------------------------
+// 0. STATISTIQUES GLOBALES (DASHBOARD HOME)
+// ----------------------------------------------------
+export async function getDashboardStatsAction() {
+  const auth = await checkAuthAndRole(UserRole.READER)
+  if (!auth.success) return { success: false, message: auth.message }
+
+  try {
+    const [
+      booksCount,
+      usersCount,
+      facultiesCount,
+      studyAreasCount,
+      recentBooks,
+      recentUsers
+    ] = await Promise.all([
+      prisma.book.count(),
+      prisma.user.count(),
+      prisma.faculty.count(),
+      prisma.studyArea.count(),
+      prisma.book.findMany({
+        take: 5,
+        orderBy: { postedAt: 'desc' },
+        include: { author: { include: { user: true } } }
+      }),
+      prisma.user.findMany({
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+        where: { role: { not: 'ADMIN' } } // On exclut les admins des "nouveaux inscrits"
+      })
+    ])
+
+    return {
+      success: true,
+      data: {
+        counts: {
+          books: booksCount,
+          users: usersCount,
+          faculties: facultiesCount,
+          studyAreas: studyAreasCount
+        },
+        recentActivity: {
+          books: recentBooks as unknown as DashboardBook[],
+          users: recentUsers as unknown as DashboardUser[]
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Erreur Stats:', error)
+    return { success: false, message: 'Impossible de charger les statistiques' }
+  }
 }
 
 // ----------------------------------------------------
@@ -149,7 +200,6 @@ export async function createEntityAction(type: EntityType, data: any): Promise<A
       case 'create_ghost_author':
         const ghostData = data as GhostAuthorSchema
         const fakeEmail = `historical.${Date.now()}@library.system`
-        // Transaction pour créer user + profil
         newEntity = await prisma.$transaction(async (tx) => {
           const user = await tx.user.create({
             data: {
@@ -181,7 +231,6 @@ export async function createEntityAction(type: EntityType, data: any): Promise<A
           }
         })) as DashBoardAuthorProfile
         
-        // Upgrade role si nécessaire
         await prisma.user.update({ where: { id: userId }, data: { role: UserRole.AUTHOR } })
         break
 
@@ -227,7 +276,7 @@ function cleanBookUpdateData(bookData: DashboardBook): BookSchema {
     return {
         title: bookData.title,
         description: bookData.description,
-        publicationYear: new Date(bookData.postedAt).getFullYear(), // Correction ici pour s'assurer d'avoir l'année
+        publicationYear: new Date(bookData.postedAt).getFullYear(),
         type: bookData.type,
         departmentId: bookData.departmentId || "",
         authorId: bookData.authorId || undefined,
@@ -253,15 +302,12 @@ export async function updateEntityAction(type: EntityType, id: string, data: any
       case 'faculties':
         updatedEntity = (await prisma.faculty.update({ where: { id }, data })) as unknown as DashboardFaculty
         break
-
       case 'departments':
         updatedEntity = (await prisma.department.update({ where: { id }, data })) as DashboardDepartment
         break
-
       case 'studyareas':
         updatedEntity = (await prisma.studyArea.update({ where: { id }, data })) as unknown as DashboardStudyArea
         break
-
       case 'users':
         const { role, isSuspended } = data as UserUpdateSchema
         updatedEntity = (await prisma.user.update({
@@ -270,7 +316,6 @@ export async function updateEntityAction(type: EntityType, id: string, data: any
           select: { id: true, username: true, email: true, role: true, isSuspended: true, createdAt: true, authorProfile: { select: { id: true } } },
         })) as DashboardUser
         break
-
       case 'books':
         const cleanData = cleanBookUpdateData(data)
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -306,7 +351,6 @@ export async function updateEntityAction(type: EntityType, id: string, data: any
           }
         })) as unknown as DashboardBook
         break
-        
       default: 
         return { success: false, message: `Update non supporté pour ${type}.` }
     }

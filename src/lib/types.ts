@@ -317,6 +317,22 @@ export type DashboardPayment = Prisma.PaymentGetPayload<{
 export type FinanceEntityType = 'loans' | 'subscriptions' | 'payments' | 'profile';
 export type FinanceEntityData = DashboardLoan | DashboardSubscription | DashboardPayment | DashboardUser;
 
+/**
+ * Type for dashboard statistics
+ */
+export interface DashboardStats {
+  counts: {
+    books: number
+    users: number
+    faculties: number
+    studyAreas: number
+  }
+  recentActivity: {
+    books: DashboardBook[]
+    users: DashboardUser[]
+  }
+}
+
 export interface LoanSchema {
     id: string;
     user: {
