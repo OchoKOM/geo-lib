@@ -411,7 +411,6 @@ export default function DashboardPage() {
                 onCreateAuthor={(userId) => {
                   setCurrentEntity({
                     type: 'author_profiles',
-                    // @ts-expect-error dynamic
                     data: { userId },
                     isEditing: false
                   })
