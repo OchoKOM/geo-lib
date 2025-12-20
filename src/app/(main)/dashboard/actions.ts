@@ -15,10 +15,11 @@ import {
   UserUpdateSchema,
   FinanceEntityData
 } from '@/lib/types'
+import { RequestStatus } from '@prisma/client'
 import { revalidatePath } from 'next/cache'
 
 // Extension des types pour inclure les finances
-type FinanceEntityType = EntityType | 'loans' | 'subscriptions' | 'payments' | 'profile' | 'author_profiles' | 'create_ghost_author'
+type FinanceEntityType = EntityType | 'loans' | 'subscriptions' | 'payments' | 'requests' | 'profile' | 'author_profiles' | 'create_ghost_author'
 
 // --- TYPE DE RÉPONSE UNIFIÉ ---
 export type ActionResponse<T = null> = {
@@ -154,6 +155,20 @@ export async function getDashboardDataAction(entityType: FinanceEntityType): Pro
             }
           },
           orderBy: { paymentDate: 'desc' }
+        })
+        break
+
+      case 'requests':
+        // Seuls les bibliothécaires et admins voient les demandes de prêt
+        if (auth.user.role !== UserRole.LIBRARIAN && auth.user.role !== UserRole.ADMIN) {
+           return { success: false, message: "Accès non autorisé aux demandes de prêt." }
+        }
+        data = await prisma.loanRequest.findMany({
+          include: {
+            user: { select: { id: true, name: true, username: true, email: true, avatarUrl: true } },
+            book: { select: { id: true, title: true, available: true } }
+          },
+          orderBy: { createdAt: 'desc' }
         })
         break
 
@@ -578,5 +593,125 @@ export async function deleteEntityAction(type: FinanceEntityType, id: string): P
   } catch (error) {
     console.error(`Erreur DELETE Action pour ${type}:`, error)
     return { success: false, message: "Erreur serveur suppression." }
+  }
+}
+
+export async function approveLoanRequest(requestId: string): Promise<ActionResponse<null>> {
+  const auth = await checkAuthAndRole(UserRole.LIBRARIAN)
+  if (!auth.success) return { success: false, message: auth.message }
+
+  try {
+    // Récupérer la demande
+    const request = await prisma.loanRequest.findUnique({
+      where: { id: requestId },
+      include: { user: true, book: true }
+    })
+
+    if (!request) {
+      return { success: false, message: 'Demande de prêt introuvable.' }
+    }
+
+    if (request.status !== 'PENDING') {
+      return { success: false, message: 'Cette demande a déjà été traitée.' }
+    }
+
+    // Vérifier la disponibilité du livre
+    if (!request.book.available) {
+      return { success: false, message: 'Ce livre n\'est pas disponible.' }
+    }
+
+    // Vérifier l'abonnement de l'utilisateur
+    const subscription = await prisma.subscription.findUnique({
+      where: { userId: request.userId }
+    })
+
+    if (!subscription) {
+      return { success: false, message: "Cet utilisateur n'a pas d'abonnement." }
+    }
+
+    if (!subscription.isActive) {
+      return { success: false, message: "L'abonnement de cet utilisateur est inactif." }
+    }
+
+    if (new Date(subscription.endDate) < new Date()) {
+      return { success: false, message: "L'abonnement de cet utilisateur a expiré." }
+    }
+
+    // Vérifier si l'utilisateur a déjà ce livre en cours d'emprunt
+    const existingLoan = await prisma.loan.findFirst({
+      where: {
+        userId: request.userId,
+        bookId: request.bookId,
+        returnDate: null
+      }
+    })
+
+    if (existingLoan) {
+      return { success: false, message: "Cet utilisateur a déjà emprunté ce livre et ne l'a pas encore rendu." }
+    }
+
+    // Utiliser une transaction pour garantir l'atomicité
+    await prisma.$transaction(async (tx) => {
+      // Mettre à jour le statut de la demande
+      await tx.loanRequest.update({
+        where: { id: requestId },
+        data: { status: RequestStatus.APPROVED }
+      })
+
+      // Créer le prêt
+      await tx.loan.create({
+        data: {
+          userId: request.userId,
+          bookId: request.bookId,
+          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 jours par défaut
+          loanDate: new Date(),
+          isOverdue: false
+        }
+      })
+
+      // Marquer le livre comme indisponible
+      await tx.book.update({
+        where: { id: request.bookId },
+        data: { available: false }
+      })
+    })
+
+    revalidatePath('/finances')
+    return { success: true, message: 'Demande de prêt approuvée avec succès.' }
+  } catch (error) {
+    console.error('Erreur approbation demande:', error)
+    return { success: false, message: 'Erreur serveur lors de l\'approbation.' }
+  }
+}
+
+export async function rejectLoanRequest(requestId: string): Promise<ActionResponse<null>> {
+  const auth = await checkAuthAndRole(UserRole.LIBRARIAN)
+  if (!auth.success) return { success: false, message: auth.message }
+
+  try {
+    // Récupérer la demande
+    const request = await prisma.loanRequest.findUnique({
+      where: { id: requestId }
+    })
+
+    if (!request) {
+      return { success: false, message: 'Demande de prêt introuvable.' }
+    }
+
+    if (request.status !== 'PENDING') {
+      return { success: false, message: 'Cette demande a déjà été traitée.' }
+    }
+
+    // Mettre à jour le statut
+    await prisma.loanRequest.update({
+      where: { id: requestId },
+      data: { status: RequestStatus.REJECTED }
+    })
+
+    revalidatePath('/finances')
+    return { success: true, message: 'Demande de prêt rejetée.' }
+  } catch (error) {
+    console.error('Erreur rejet demande:', error)
+    return { success: false, message: 'Erreur serveur lors du rejet.' }
   }
 }

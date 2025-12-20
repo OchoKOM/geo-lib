@@ -275,21 +275,6 @@ export type DashboardLoan = Prisma.LoanGetPayload<{
   };
 }>;
 
-/**
- * Type pour un Abonnement (Subscription)
- */
-export type DashboardSubscription = Prisma.SubscriptionGetPayload<{
-  include: {
-    user: {
-      select: {
-        id: true;
-        name: true;
-        username: true;
-        email: true;
-      };
-    };
-  };
-}>;
 
 /**
  * Type pour un Paiement (Payment)
@@ -315,9 +300,63 @@ export type DashboardPayment = Prisma.PaymentGetPayload<{
   };
 }>;
 
-export type FinanceEntityType = 'loans' | 'subscriptions' | 'payments' | 'profile';
-export type FinanceEntityData = DashboardLoan | DashboardSubscription | DashboardPayment | DashboardUser;
+/**
+ * Type pour une demande de prêt (LoanRequest)
+ */
+export type DashboardLoanRequest = Prisma.LoanRequestGetPayload<{
+  include: {
+    user: {
+      select: {
+        id: true;
+        name: true;
+        email: true;
+        avatarUrl: true;
+      };
+    };
+    book: {
+      select: {
+        id: true;
+        title: true;
+        available: true;
+      };
+    };
+  };
+}>;
 
+/**
+ * Type pour un abonnement (Subscription)
+ */
+export type DashboardSubscription = Prisma.SubscriptionGetPayload<{
+  include: {
+    user: {
+      select: {
+        id: true;
+        name: true;
+        username: true;
+        email: true;
+      };
+    };
+  };
+}>;
+
+// Mise à jour des types d'entités financières
+export type FinanceEntityType = 'loans' | 'subscriptions' | 'payments' | 'requests' | 'profile';
+
+// Union des données possibles pour la table
+export type FinanceEntityData = DashboardLoan | DashboardSubscription | DashboardPayment | DashboardUser | DashboardLoanRequest;
+
+
+/**
+ * Interface pour les props de la table de finance
+ */
+export interface FinanceTableProps {
+  data: FinanceEntityData[];
+  activeTab: FinanceEntityType;
+  onEdit: (item: FinanceEntityData) => void; // À affiner selon le besoin d'édition
+  onDelete: (item: { type: string; id: string }) => void;
+  isAuthorized: (role: UserRole) => boolean;
+  isLoading?: boolean;
+}
 /**
  * Type for dashboard statistics
  */

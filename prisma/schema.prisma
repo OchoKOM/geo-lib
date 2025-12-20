@@ -72,6 +72,8 @@ model User {
   payments      Payment[]
   subscription  Subscription?
   authorProfile AuthorProfile?
+
+  loanRequests LoanRequest[]
 }
 
 model Session {
@@ -171,6 +173,8 @@ model Book {
   // Relations
   loans      Loan[]
   studyAreas BookStudyArea[]
+
+  loanRequests LoanRequest[]
 }
 
 // --- GÉOSPATIAL (CŒUR DE GEOLIB) ---
@@ -223,6 +227,26 @@ model File {
 }
 
 // --- PRÊTS & FINANCE ---
+
+model LoanRequest {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  status    RequestStatus @default(PENDING)
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  bookId    String
+  book      Book     @relation(fields: [bookId], references: [id])
+
+  @@unique([userId, bookId]) // Un utilisateur ne peut faire qu'une demande par livre à la fois
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
 
 model Loan {
   id         String    @id @default(cuid())

@@ -10,7 +10,7 @@ interface ToastProps {
 
 // Mappage des variantes aux classes CSS
 const colors: Record<ToastVariant, string> = {
-  default: 'bg-slate-100 text-black dark:bg-slate-800 dark:text-white',
+  default: 'bg-primary text-primary-foreground',
   success: 'bg-green-400 text-green-900',
   destructive: 'bg-red-400 text-red-900',
   warning: 'bg-yellow-300 text-orange-900',
