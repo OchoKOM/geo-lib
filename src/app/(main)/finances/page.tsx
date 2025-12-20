@@ -59,7 +59,7 @@ export default function FinancePage () {
   const [requestFilter, setRequestFilter] = useState<'all' | 'loan' | 'subscription'>('all')
 
   // Pagination state
-  const [currentPage, setCurrentPage] = useState<Record<FinanceEntityType, number>>({
+  const [currentPage, setCurrentPage] = useState<Record<string, number>>({
     'active-loans': 1,
     'history': 1,
     'requests': 1,
@@ -236,7 +236,6 @@ export default function FinancePage () {
     try {
       // 1. Charger les données principales
       if (activeTab === 'active-loans') {
-        // @ts-expect-error casting
         const res = await getDashboardDataAction('active-loans')
         if (res.success && res.data) {
           setActiveLoans(res.data as DashboardLoan[])
@@ -310,13 +309,11 @@ export default function FinancePage () {
         // Astuce: on utilise l'action existante pour récupérer les users si admin
         // Sinon il faudrait une action spécifique "getUsersForSelect" pour les bibliothécaires
         const uRes = await getDashboardDataAction('users')
-        // @ts-expect-error casting
-        if (uRes.success && uRes.data) setUsersList(uRes.data)
+        if (uRes.success && uRes.data) setUsersList(uRes.data as DashboardUser[])
       }
       if (booksList.length === 0 && (activeTab === 'active-loans' || activeTab === 'history')) {
         const bRes = await getDashboardDataAction('books')
-        // @ts-expect-error casting
-        if (bRes.success && bRes.data) setBooksList(bRes.data)
+        if (bRes.success && bRes.data) setBooksList(bRes.data as DashboardBook[])
       }
     } catch (err) {
       console.error(err)
@@ -337,7 +334,7 @@ export default function FinancePage () {
       })
 
       if (res.success) {
-        showToast('Prêt marqué comme retourné')
+        showToast('Prêt marqué comme retourné', 'success')
         fetchData()
       } else {
         showToast(res.message, 'destructive')
@@ -355,13 +352,11 @@ export default function FinancePage () {
       let res
       if (currentEntity.isEditing && currentEntity.id) {
         res = await updateEntityAction(
-          // @ts-expect-error casting
           currentEntity.type,
           currentEntity.id,
           currentEntity.data
         )
       } else {
-        // @ts-expect-error casting
         res = await createEntityAction(currentEntity.type, currentEntity.data)
       }
 
@@ -385,7 +380,6 @@ export default function FinancePage () {
   const handleDelete = async (target: DeleteTarget) => {
     setLoading(true)
     try {
-      // @ts-expect-error casting
       const res = await deleteEntityAction(target.type, target.id)
       if (res.success) {
         showToast('Supprimé avec succès', 'default')
@@ -538,7 +532,9 @@ export default function FinancePage () {
           onMarkReturned={handleMarkReturned}
           onEdit={item => {
             let formData: Record<string, unknown> = {}
+            let entityType: FinanceEntityType = activeTab
             if (activeTab === 'active-loans' || activeTab === 'history') {
+              entityType = 'loans'
               const loan = item as unknown as DashboardLoan
               formData = {
                 userId: loan.user.id,
@@ -556,7 +552,7 @@ export default function FinancePage () {
               }
             }
             setCurrentEntity({
-              type: activeTab,
+              type: entityType,
               data: formData,
               isEditing: true,
               id: item.id

@@ -15,11 +15,11 @@ import {
   UserUpdateSchema,
   FinanceEntityData,
 } from '@/lib/types'
-import { RequestStatus } from '@prisma/client'
+import { Prisma, RequestStatus } from '@prisma/client'
 import { revalidatePath } from 'next/cache'
 
 // Extension des types pour inclure les finances
-type FinanceEntityType = EntityType | 'loans' | 'subscriptions' | 'payments' | 'requests' | 'subscription-requests' | 'history' | 'profile' | 'author_profiles' | 'create_ghost_author'
+type FinanceEntityType = EntityType | 'active-loans' | 'loans' | 'subscriptions' | 'payments' | 'requests' | 'subscription-requests' | 'history' | 'profile' | 'author_profiles' | 'create_ghost_author'
 
 // --- TYPE DE RÉPONSE UNIFIÉ ---
 export type ActionResponse<T = null> = {
@@ -100,7 +100,7 @@ export async function getDashboardStatsAction() {
 // ----------------------------------------------------
 // 1. LECTURE DES DONNÉES (GET)
 // ----------------------------------------------------
-export async function getDashboardDataAction(entityType: FinanceEntityType): Promise<ActionResponse<EntityData[] | FinanceEntityData[]>> {
+export async function getDashboardDataAction(entityType: FinanceEntityType): Promise<ActionResponse<unknown[]>> {
   const auth = await checkAuthAndRole(UserRole.READER)
   if (!auth.success) return { success: false, message: auth.message }
 
@@ -109,7 +109,6 @@ export async function getDashboardDataAction(entityType: FinanceEntityType): Pro
 
     switch (entityType) {
       // --- SECTION FINANCES ---
-      // @ts-expect-error FinanceEntityData
       case 'active-loans':
         // Seuls les bibliothécaires et admins voient les prêts
         if (auth.user.role !== UserRole.LIBRARIAN && auth.user.role !== UserRole.ADMIN) {
@@ -146,7 +145,13 @@ export async function getDashboardDataAction(entityType: FinanceEntityType): Pro
            return { success: false, message: "Accès non autorisé aux abonnements." }
         }
         data = await prisma.subscription.findMany({
-          include: {
+          select: {
+            id: true,
+            startDate: true,
+            endDate: true,
+            isActive: true,
+            remainingDaysAtSuspension: true,
+            type: true,
             user: { select: { id: true, username: true, name:true, email: true } }
           },
           orderBy: { endDate: 'asc' }
@@ -385,8 +390,9 @@ export async function createEntityAction(type: FinanceEntityType, data: any): Pr
             userId: subUserId,
             startDate,
             endDate,
-            isActive: true
-          },
+            isActive: true,
+            type
+          } as Prisma.SubscriptionUncheckedCreateInput,
           include: {
             user: { select: { id: true, username: true } }
           }
@@ -801,7 +807,8 @@ export async function approveSubscriptionRequest(requestId: string): Promise<Act
           userId: request.userId,
           startDate: new Date(),
           endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 jours par défaut
-          isActive: true
+          isActive: true,
+          type: 'MONTHLY'
         }
       })
     })

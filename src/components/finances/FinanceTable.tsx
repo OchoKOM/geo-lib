@@ -1072,6 +1072,10 @@ export function FinanceTable ({
                 </div>
               </div>
               <div>
+                <Label className='text-sm font-medium text-slate-500'>Type d&apos;abonnement</Label>
+                <p className='text-sm'>{selectedSubscriptionForDetails.type}</p>
+              </div>
+              <div>
                 <Label className='text-sm font-medium text-slate-500'>Jours restants</Label>
                 <p className='text-sm'>
                   {(() => {

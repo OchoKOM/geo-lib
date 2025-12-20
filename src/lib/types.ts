@@ -328,7 +328,13 @@ export type DashboardLoanRequest = Prisma.LoanRequestGetPayload<{
  * Type pour un abonnement (Subscription)
  */
 export type DashboardSubscription = Prisma.SubscriptionGetPayload<{
-  include: {
+  select: {
+    id: true;
+    startDate: true;
+    endDate: true;
+    isActive: true;
+    remainingDaysAtSuspension: true;
+    type: true;
     user: {
       select: {
         id: true;
@@ -358,7 +364,7 @@ export type DashboardSubscriptionRequest = Prisma.SubscriptionRequestGetPayload<
 }>;
 
 // Mise à jour des types d'entités financières
-export type FinanceEntityType = 'active-loans' | 'history' | 'requests' | 'subscriptions' | 'payments';
+export type FinanceEntityType = 'active-loans' | 'history' | 'requests' | 'subscriptions' | 'payments' | 'loans';
 
 // Import RequestStatus for use in filtering
 export { RequestStatus } from '@prisma/client';

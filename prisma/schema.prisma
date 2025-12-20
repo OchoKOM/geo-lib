@@ -278,6 +278,7 @@ model Subscription {
   endDate   DateTime
   isActive  Boolean  @default(true)
   remainingDaysAtSuspension Int?
+  type      SubscriptionType @default(MONTHLY)
 
   userId String @unique
   user   User   @relation(fields: [userId], references: [id])
