@@ -13,13 +13,13 @@ import {
   GhostAuthorSchema,
   BookSchema,
   UserUpdateSchema,
-  FinanceEntityData
+  FinanceEntityData,
 } from '@/lib/types'
 import { RequestStatus } from '@prisma/client'
 import { revalidatePath } from 'next/cache'
 
 // Extension des types pour inclure les finances
-type FinanceEntityType = EntityType | 'loans' | 'subscriptions' | 'payments' | 'requests' | 'profile' | 'author_profiles' | 'create_ghost_author'
+type FinanceEntityType = EntityType | 'loans' | 'subscriptions' | 'payments' | 'requests' | 'subscription-requests' | 'history' | 'profile' | 'author_profiles' | 'create_ghost_author'
 
 // --- TYPE DE RÉPONSE UNIFIÉ ---
 export type ActionResponse<T = null> = {
@@ -109,12 +109,14 @@ export async function getDashboardDataAction(entityType: FinanceEntityType): Pro
 
     switch (entityType) {
       // --- SECTION FINANCES ---
-      case 'loans':
+      // @ts-expect-error FinanceEntityData
+      case 'active-loans':
         // Seuls les bibliothécaires et admins voient les prêts
         if (auth.user.role !== UserRole.LIBRARIAN && auth.user.role !== UserRole.ADMIN) {
            return { success: false, message: "Accès non autorisé aux prêts." }
         }
         data = await prisma.loan.findMany({
+          where: { returnDate: null },
           include: {
             user: { select: { id: true, username: true, name:true, email: true } },
             book: { select: { id: true, title: true } }
@@ -123,9 +125,24 @@ export async function getDashboardDataAction(entityType: FinanceEntityType): Pro
         })
         break
 
+      case 'history':
+        // Seuls les bibliothécaires et admins voient les prêts
+        if (auth.user.role !== UserRole.LIBRARIAN && auth.user.role !== UserRole.ADMIN) {
+           return { success: false, message: "Accès non autorisé aux prêts." }
+        }
+        data = await prisma.loan.findMany({
+          where: { returnDate: { not: null } },
+          include: {
+            user: { select: { id: true, username: true, name:true, email: true } },
+            book: { select: { id: true, title: true } }
+          },
+          orderBy: { returnDate: 'desc' }
+        })
+        break
+
       case 'subscriptions':
-        // Seuls les admins voient les abonnements
-        if (auth.user.role !== UserRole.ADMIN) {
+        // Seuls les bibliothécaires et admins voient les abonnements
+        if (auth.user.role !== UserRole.LIBRARIAN && auth.user.role !== UserRole.ADMIN) {
            return { success: false, message: "Accès non autorisé aux abonnements." }
         }
         data = await prisma.subscription.findMany({
@@ -167,6 +184,19 @@ export async function getDashboardDataAction(entityType: FinanceEntityType): Pro
           include: {
             user: { select: { id: true, name: true, username: true, email: true, avatarUrl: true } },
             book: { select: { id: true, title: true, available: true } }
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+        break
+
+      case 'subscription-requests':
+        // Seuls les admins voient les demandes d'abonnement
+        if (auth.user.role !== UserRole.ADMIN) {
+           return { success: false, message: "Accès non autorisé aux demandes d'abonnement." }
+        }
+        data = await prisma.subscriptionRequest.findMany({
+          include: {
+            user: { select: { id: true, name: true, username: true, email: true, avatarUrl: true } }
           },
           orderBy: { createdAt: 'desc' }
         })
@@ -321,11 +351,28 @@ export async function createEntityAction(type: FinanceEntityType, data: any): Pr
         break
 
       case 'subscriptions':
-        // Création abonnement (par défaut 30 jours ou spécifié)
-        const { userId: subUserId, durationInDays } = data
+        // Création abonnement basé sur le type
+        const { userId: subUserId, type } = data
         const startDate = new Date()
-        const endDate = new Date()
-        endDate.setDate(startDate.getDate() + (parseInt(durationInDays) || 30))
+        const endDate = new Date(startDate)
+
+        // Calculer la date de fin selon le type d'abonnement
+        switch (type) {
+          case 'DAILY':
+            endDate.setDate(startDate.getDate() + 1)
+            break
+          case 'WEEKLY':
+            endDate.setDate(startDate.getDate() + 7)
+            break
+          case 'MONTHLY':
+            endDate.setMonth(startDate.getMonth() + 1)
+            break
+          case 'ANNUAL':
+            endDate.setFullYear(startDate.getFullYear() + 1)
+            break
+          default:
+            endDate.setMonth(startDate.getMonth() + 1) // Par défaut mensuel
+        }
 
         // Vérifier s'il a déjà un abonnement
         const existingSub = await prisma.subscription.findUnique({ where: { userId: subUserId } })
@@ -713,5 +760,160 @@ export async function rejectLoanRequest(requestId: string): Promise<ActionRespon
   } catch (error) {
     console.error('Erreur rejet demande:', error)
     return { success: false, message: 'Erreur serveur lors du rejet.' }
+  }
+}
+
+export async function approveSubscriptionRequest(requestId: string): Promise<ActionResponse<null>> {
+  const auth = await checkAuthAndRole(UserRole.ADMIN)
+  if (!auth.success) return { success: false, message: auth.message }
+
+  try {
+    const request = await prisma.subscriptionRequest.findUnique({
+      where: { id: requestId },
+      include: { user: true }
+    })
+
+    if (!request) {
+      return { success: false, message: 'Demande d\'abonnement introuvable.' }
+    }
+
+    if (request.status !== 'PENDING') {
+      return { success: false, message: 'Cette demande a déjà été traitée.' }
+    }
+
+    // Vérifier si l'utilisateur a déjà un abonnement
+    const existingSub = await prisma.subscription.findUnique({
+      where: { userId: request.userId }
+    })
+
+    if (existingSub) {
+      return { success: false, message: 'Cet utilisateur a déjà un abonnement.' }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.subscriptionRequest.update({
+        where: { id: requestId },
+        data: { status: RequestStatus.APPROVED }
+      })
+
+      await tx.subscription.create({
+        data: {
+          userId: request.userId,
+          startDate: new Date(),
+          endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 jours par défaut
+          isActive: true
+        }
+      })
+    })
+
+    revalidatePath('/finances')
+    return { success: true, message: 'Demande d\'abonnement approuvée avec succès.' }
+  } catch (error) {
+    console.error('Erreur approbation abonnement:', error)
+    return { success: false, message: 'Erreur serveur lors de l\'approbation.' }
+  }
+}
+
+export async function rejectSubscriptionRequest(requestId: string): Promise<ActionResponse<null>> {
+  const auth = await checkAuthAndRole(UserRole.ADMIN)
+  if (!auth.success) return { success: false, message: auth.message }
+
+  try {
+    const request = await prisma.subscriptionRequest.findUnique({
+      where: { id: requestId }
+    })
+
+    if (!request) {
+      return { success: false, message: 'Demande d\'abonnement introuvable.' }
+    }
+
+    if (request.status !== 'PENDING') {
+      return { success: false, message: 'Cette demande a déjà été traitée.' }
+    }
+
+    await prisma.subscriptionRequest.update({
+      where: { id: requestId },
+      data: { status: RequestStatus.REJECTED }
+    })
+
+    revalidatePath('/finances')
+    return { success: true, message: 'Demande d\'abonnement rejetée.' }
+  } catch (error) {
+    console.error('Erreur rejet abonnement:', error)
+    return { success: false, message: 'Erreur serveur lors du rejet.' }
+  }
+}
+
+export async function suspendSubscription(subscriptionId: string, data: { type: string; resumption: boolean; endDate: string }): Promise<ActionResponse<null>> {
+  const auth = await checkAuthAndRole(UserRole.ADMIN)
+  if (!auth.success) return { success: false, message: auth.message }
+
+  try {
+    const subscription = await prisma.subscription.findUnique({
+      where: { id: subscriptionId }
+    })
+
+    if (!subscription) {
+      return { success: false, message: 'Abonnement introuvable.' }
+    }
+
+    // Calculer les jours restants à la suspension
+    const now = new Date()
+    const endDate = new Date(subscription.endDate)
+    const remainingDays = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 3600 * 24))
+
+    await prisma.subscription.update({
+      where: { id: subscriptionId },
+      data: {
+        isActive: false,
+        endDate: new Date(), // Suspension stops the subscription immediately
+        remainingDaysAtSuspension: remainingDays > 0 ? remainingDays : null
+      }
+    })
+
+    revalidatePath('/finances')
+    return { success: true, message: 'Abonnement suspendu avec succès.' }
+  } catch (error) {
+    console.error('Erreur suspension abonnement:', error)
+    return { success: false, message: 'Erreur serveur lors de la suspension.' }
+  }
+}
+
+export async function activateSubscription(subscriptionId: string, data: { type: string; resumption: boolean; endDate: string }): Promise<ActionResponse<null>> {
+  const auth = await checkAuthAndRole(UserRole.ADMIN)
+  if (!auth.success) return { success: false, message: auth.message }
+
+  try {
+    const subscription = await prisma.subscription.findUnique({
+      where: { id: subscriptionId }
+    })
+
+    if (!subscription) {
+      return { success: false, message: 'Abonnement introuvable.' }
+    }
+
+    const updateData = { isActive: true } as Record<string, unknown>
+
+    if (data.resumption && subscription.remainingDaysAtSuspension && subscription.remainingDaysAtSuspension > 0) {
+      // Utiliser les jours restants pour la reprise
+      const newEndDate = new Date()
+      newEndDate.setDate(newEndDate.getDate() + subscription.remainingDaysAtSuspension)
+      updateData.endDate = newEndDate
+      updateData.remainingDaysAtSuspension = null // Réinitialiser après utilisation
+    } else {
+      // Nouvelle activation avec une date par défaut (30 jours)
+      updateData.endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    }
+
+    await prisma.subscription.update({
+      where: { id: subscriptionId },
+      data: updateData
+    })
+
+    revalidatePath('/finances')
+    return { success: true, message: 'Abonnement activé avec succès.' }
+  } catch (error) {
+    console.error('Erreur activation abonnement:', error)
+    return { success: false, message: 'Erreur serveur lors de l\'activation.' }
   }
 }

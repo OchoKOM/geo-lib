@@ -4,11 +4,11 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   CreditCard,
   HandCoins,
-  Plus,
   RefreshCw,
   Loader2,
   Search,
-  Clock
+  Clock,
+  History
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,13 @@ import {
   DialogTitle,
   DialogFooter
 } from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 import { showToast } from '@/hooks/useToast'
 import { useAuth } from '@/components/AuthProvider'
 
@@ -31,9 +38,11 @@ import {
   DashboardBook,
   DashboardLoan,
   DashboardSubscription,
-  FinanceEntityData,
-  DashboardLoanRequest
+  DashboardLoanRequest,
+  DashboardSubscriptionRequest,
+  FinanceEntityType
 } from '@/lib/types'
+import { RequestStatus } from '@prisma/client'
 import { CurrentEntity, DeleteTarget } from '@/lib/dashboard-config'
 import {
   createEntityAction,
@@ -44,18 +53,29 @@ import {
 
 export default function FinancePage () {
   const { user } = useAuth()
-  const [activeTab, setActiveTab] = useState<
-    'loans' | 'subscriptions' | 'requests'
-  >('loans')
+  const [activeTab, setActiveTab] = useState<FinanceEntityType>('active-loans')
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [requestFilter, setRequestFilter] = useState<'all' | 'loan' | 'subscription'>('all')
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<Record<FinanceEntityType, number>>({
+    'active-loans': 1,
+    'history': 1,
+    'requests': 1,
+    'subscriptions': 1,
+    'payments': 1
+  })
+  const pageSize = 10
 
   // Data State
-  const [loans, setLoans] = useState<DashboardLoan[]>([])
+  const [activeLoans, setActiveLoans] = useState<DashboardLoan[]>([])
+  const [historyData, setHistoryData] = useState<(DashboardLoan | DashboardLoanRequest | DashboardSubscriptionRequest)[]>([])
+  const [requests, setRequests] = useState<(DashboardLoanRequest | DashboardSubscriptionRequest)[]>([])
   const [subscriptions, setSubscriptions] = useState<DashboardSubscription[]>(
     []
   )
-  const [requests, setRequests] = useState<DashboardLoanRequest[]>([])
+  const [payments, setPayments] = useState<DashboardLoanRequest[]>([])
 
   // Resources for Selects
   const [usersList, setUsersList] = useState<DashboardUser[]>([])
@@ -73,17 +93,83 @@ export default function FinancePage () {
   }
 
   // --- FILTERING (RECHERCHE) ---
-  const filteredLoans = useMemo(() => {
-    if (!searchTerm) return loans
+  const filteredActiveLoans = useMemo(() => {
+    if (!searchTerm) return activeLoans
     const lowerTerm = searchTerm.toLowerCase()
-    return loans.filter(
+    return activeLoans.filter(
       l =>
         l.user.name?.toLowerCase().includes(lowerTerm) ||
         l.user.username.toLowerCase().includes(lowerTerm) ||
         l.user.email.toLowerCase().includes(lowerTerm) ||
         (l.book?.title || '').toLowerCase().includes(lowerTerm)
     )
-  }, [loans, searchTerm])
+  }, [activeLoans, searchTerm])
+
+  const filteredHistory = useMemo(() => {
+    if (!searchTerm) return historyData
+    const lowerTerm = searchTerm.toLowerCase()
+    return historyData.filter(item => {
+      if ('loanDate' in item) {
+        // It's a loan
+        return (
+          item.user.name?.toLowerCase().includes(lowerTerm) ||
+          item.user.username?.toLowerCase().includes(lowerTerm) ||
+          item.user.email.toLowerCase().includes(lowerTerm) ||
+          (item.book?.title || '').toLowerCase().includes(lowerTerm)
+        )
+      } else if ('book' in item) {
+        // It's a loan request
+        return (
+          item.user.name?.toLowerCase().includes(lowerTerm) ||
+          item.user.username?.toLowerCase().includes(lowerTerm) ||
+          item.user.email.toLowerCase().includes(lowerTerm) ||
+          (item.book?.title || '').toLowerCase().includes(lowerTerm)
+        )
+      } else {
+        // It's a subscription request
+        return (
+          item.user.name.toLowerCase().includes(lowerTerm) ||
+          item.user.email.toLowerCase().includes(lowerTerm)
+        )
+      }
+    })
+  }, [historyData, searchTerm])
+
+  const filteredRequests = useMemo(() => {
+    let filtered = requests
+
+    // Filter by type
+    if (requestFilter !== 'all') {
+      filtered = filtered.filter(item => {
+        if (requestFilter === 'loan') {
+          return 'book' in item
+        } else if (requestFilter === 'subscription') {
+          return !('book' in item)
+        }
+        return true
+      })
+    }
+
+    // Filter by search term
+    if (!searchTerm) return filtered
+    const lowerTerm = searchTerm.toLowerCase()
+    return filtered.filter(item => {
+      if ('book' in item) {
+        // It's a loan request
+        return (
+          item.user.name.toLowerCase().includes(lowerTerm) ||
+          item.user.email.toLowerCase().includes(lowerTerm) ||
+          item.book.title.toLowerCase().includes(lowerTerm)
+        )
+      } else {
+        // It's a subscription request
+        return (
+          item.user.name.toLowerCase().includes(lowerTerm) ||
+          item.user.email.toLowerCase().includes(lowerTerm)
+        )
+      }
+    })
+  }, [requests, searchTerm, requestFilter])
 
   const filteredSubscriptions = useMemo(() => {
     if (!searchTerm) return subscriptions
@@ -96,16 +182,52 @@ export default function FinancePage () {
     )
   }, [subscriptions, searchTerm])
 
-  const filteredRequests = useMemo(() => {
-    if (!searchTerm) return requests
+  const filteredPayments = useMemo(() => {
+    if (!searchTerm) return payments
     const lowerTerm = searchTerm.toLowerCase()
-    return requests.filter(
-      r =>
-        r.user.name.toLowerCase().includes(lowerTerm) ||
-        r.user.email.toLowerCase().includes(lowerTerm) ||
-        r.book.title.toLowerCase().includes(lowerTerm)
+    return payments.filter(
+      p =>
+        p.user.name.toLowerCase().includes(lowerTerm) ||
+        p.user.email.toLowerCase().includes(lowerTerm)
     )
-  }, [requests, searchTerm])
+  }, [payments, searchTerm])
+
+  // --- PAGINATION ---
+  const paginatedActiveLoans = useMemo(() => {
+    const startIndex = (currentPage['active-loans'] - 1) * pageSize
+    return filteredActiveLoans.slice(startIndex, startIndex + pageSize)
+  }, [filteredActiveLoans, currentPage, pageSize])
+
+  const paginatedHistory = useMemo(() => {
+    const startIndex = (currentPage['history'] - 1) * pageSize
+    return filteredHistory.slice(startIndex, startIndex + pageSize)
+  }, [filteredHistory, currentPage, pageSize])
+
+  const paginatedRequests = useMemo(() => {
+    const startIndex = (currentPage['requests'] - 1) * pageSize
+    return filteredRequests.slice(startIndex, startIndex + pageSize)
+  }, [filteredRequests, currentPage, pageSize])
+
+  const paginatedSubscriptions = useMemo(() => {
+    const startIndex = (currentPage['subscriptions'] - 1) * pageSize
+    return filteredSubscriptions.slice(startIndex, startIndex + pageSize)
+  }, [filteredSubscriptions, currentPage, pageSize])
+
+  const paginatedPayments = useMemo(() => {
+    const startIndex = (currentPage['payments'] - 1) * pageSize
+    return filteredPayments.slice(startIndex, startIndex + pageSize)
+  }, [filteredPayments, currentPage, pageSize])
+
+  const getTotalPages = (data: unknown[]) => Math.ceil(data.length / pageSize)
+
+  const handlePageChange = (tab: FinanceEntityType, page: number) => {
+    setCurrentPage(prev => ({ ...prev, [tab]: page }))
+  }
+
+  // Reset page when tab changes or search term changes
+  useEffect(() => {
+    setCurrentPage(prev => ({ ...prev, [activeTab]: 1 }))
+  }, [activeTab, searchTerm, requestFilter])
 
   // --- DATA FETCHING ---
   const fetchData = useCallback(async () => {
@@ -113,17 +235,73 @@ export default function FinancePage () {
     setLoading(true)
     try {
       // 1. Charger les données principales
-      if (activeTab === 'loans') {
-        const res = await getDashboardDataAction('loans')
-        if (res.success && res.data) setLoans(res.data as DashboardLoan[])
+      if (activeTab === 'active-loans') {
+        // @ts-expect-error casting
+        const res = await getDashboardDataAction('active-loans')
+        if (res.success && res.data) {
+          setActiveLoans(res.data as DashboardLoan[])
+        }
+      } else if (activeTab === 'history') {
+        // Fetch both loan history and processed requests
+        const loanHistoryRes = await getDashboardDataAction('history')
+        const requestsRes = await getDashboardDataAction('requests')
+        const subscriptionRequestsRes = await getDashboardDataAction('subscription-requests')
+
+        const combinedData: (DashboardLoan | DashboardLoanRequest | DashboardSubscriptionRequest)[] = []
+
+        if (loanHistoryRes.success && loanHistoryRes.data) {
+          combinedData.push(...(loanHistoryRes.data as DashboardLoan[]))
+        }
+
+        if (requestsRes.success && requestsRes.data) {
+          const processedRequests = (requestsRes.data as DashboardLoanRequest[]).filter(
+            req => req.status !== RequestStatus.PENDING
+          )
+          combinedData.push(...processedRequests)
+        }
+
+        if (subscriptionRequestsRes.success && subscriptionRequestsRes.data) {
+          const processedSubscriptionRequests = (subscriptionRequestsRes.data as DashboardSubscriptionRequest[]).filter(
+            req => req.status !== RequestStatus.PENDING
+          )
+          combinedData.push(...processedSubscriptionRequests)
+        }
+
+        setHistoryData(combinedData)
+      } else if (activeTab === 'requests') {
+        const loanRequestsRes = await getDashboardDataAction('requests')
+        const subscriptionRequestsRes = await getDashboardDataAction('subscription-requests')
+
+        console.log('Loan requests response:', loanRequestsRes)
+        console.log('Subscription requests response:', subscriptionRequestsRes)
+
+        if (!loanRequestsRes.success) {
+          showToast(loanRequestsRes.message, 'destructive')
+        }
+        if (!subscriptionRequestsRes.success) {
+          showToast(subscriptionRequestsRes.message, 'destructive')
+        }
+
+        const combinedRequests: (DashboardLoanRequest | DashboardSubscriptionRequest)[] = []
+
+        if (loanRequestsRes.success && loanRequestsRes.data) {
+          combinedRequests.push(...(loanRequestsRes.data as DashboardLoanRequest[]))
+        }
+
+        if (subscriptionRequestsRes.success && subscriptionRequestsRes.data) {
+          combinedRequests.push(...(subscriptionRequestsRes.data as DashboardSubscriptionRequest[]))
+        }
+
+        console.log('Combined requests:', combinedRequests)
+        setRequests(combinedRequests)
       } else if (activeTab === 'subscriptions') {
         const res = await getDashboardDataAction('subscriptions')
+        console.log('Subscriptions response:', res)
         if (res.success && res.data)
           setSubscriptions(res.data as DashboardSubscription[])
-      } else if (activeTab === 'requests') {
-        const res = await getDashboardDataAction('requests')
-        if (res.success && res.data)
-          setRequests(res.data as DashboardLoanRequest[])
+      } else if (activeTab === 'payments') {
+        const res = await getDashboardDataAction('payments')
+        if (res.success && res.data) setPayments(res.data as DashboardLoanRequest[])
       }
 
       // 2. Charger les ressources pour les formulaires (utilisateurs, livres)
@@ -135,7 +313,7 @@ export default function FinancePage () {
         // @ts-expect-error casting
         if (uRes.success && uRes.data) setUsersList(uRes.data)
       }
-      if (booksList.length === 0 && activeTab === 'loans') {
+      if (booksList.length === 0 && (activeTab === 'active-loans' || activeTab === 'history')) {
         const bRes = await getDashboardDataAction('books')
         // @ts-expect-error casting
         if (bRes.success && bRes.data) setBooksList(bRes.data)
@@ -177,11 +355,13 @@ export default function FinancePage () {
       let res
       if (currentEntity.isEditing && currentEntity.id) {
         res = await updateEntityAction(
+          // @ts-expect-error casting
           currentEntity.type,
           currentEntity.id,
           currentEntity.data
         )
       } else {
+        // @ts-expect-error casting
         res = await createEntityAction(currentEntity.type, currentEntity.data)
       }
 
@@ -205,6 +385,7 @@ export default function FinancePage () {
   const handleDelete = async (target: DeleteTarget) => {
     setLoading(true)
     try {
+      // @ts-expect-error casting
       const res = await deleteEntityAction(target.type, target.id)
       if (res.success) {
         showToast('Supprimé avec succès', 'default')
@@ -238,36 +419,46 @@ export default function FinancePage () {
           </div>
         </div>
 
-        <div className='flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg'>
+        <div className='flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg overflow-x-auto'>
           <button
-            onClick={() => setActiveTab('loans')}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
-              activeTab === 'loans'
+            onClick={() => setActiveTab('active-loans')}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'active-loans'
                 ? 'bg-white dark:bg-muted shadow text-orange-600 dark:text-orange-400'
                 : 'text-slate-500 hover:text-muted-foreground'
             }`}
           >
-            <HandCoins className='w-4 h-4' /> Prêts
+            <HandCoins className='w-4 h-4' /> Prêts Actifs
+          </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'history'
+                ? 'bg-white dark:bg-muted shadow text-orange-600 dark:text-orange-400'
+                : 'text-slate-500 hover:text-muted-foreground'
+            }`}
+          >
+            <History className='w-4 h-4' /> Historique
+          </button>
+          <button
+            onClick={() => setActiveTab('requests')}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'requests'
+                ? 'bg-white dark:bg-muted shadow text-yellow-600 dark:text-yellow-400'
+                : 'text-slate-500 hover:text-muted-foreground'
+            }`}
+          >
+            <Clock className='w-4 h-4' /> Demandes
           </button>
           <button
             onClick={() => setActiveTab('subscriptions')}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'subscriptions'
                 ? 'bg-white dark:bg-muted shadow text-emerald-600 dark:text-emerald-400'
                 : 'text-slate-500 hover:text-muted-foreground'
             }`}
           >
             <CreditCard className='w-4 h-4' /> Abonnements
-          </button>
-          <button
-            onClick={() => setActiveTab('requests')}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
-              activeTab === 'requests'
-                ? 'bg-white dark:bg-muted shadow text-primary'
-                : 'text-slate-500 hover:text-muted-foreground'
-            }`}
-          >
-            <Clock className='w-4 h-4' /> Requêtes
           </button>
 
         </div>
@@ -277,9 +468,11 @@ export default function FinancePage () {
       <main className='flex-1 max-w-7xl w-full mx-auto p-6'>
         <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6'>
           <h2 className='text-lg font-semibold text-slate-800 dark:text-slate-200'>
-            {activeTab !== 'subscriptions'
+            {(activeTab === 'active-loans' || activeTab === 'history')
               ? 'Registre des Prêts'
-              : 'Liste des Abonnements'}
+              : activeTab === 'subscriptions'
+              ? 'Liste des Abonnements'
+              : 'Gestion des Demandes'}
           </h2>
 
           <div className='flex items-center gap-2 w-full sm:w-auto'>
@@ -288,15 +481,31 @@ export default function FinancePage () {
               <Search className='absolute left-2.5 top-2.5 h-4 w-4 text-slate-400' />
               <Input
                 placeholder={
-                  activeTab === 'loans'
+                  activeTab === 'active-loans' || activeTab === 'history'
                     ? 'Rechercher un prêt, un livre...'
-                    : 'Rechercher un abonné...'
+                    : activeTab === 'subscriptions'
+                    ? 'Rechercher un abonné...'
+                    : 'Rechercher une demande...'
                 }
                 className='pl-9 h-10'
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
               />
             </div>
+
+            {/* FILTER DROPDOWN FOR REQUESTS */}
+            {activeTab === 'requests' && (
+              <Select value={requestFilter} onValueChange={(value: 'all' | 'loan' | 'subscription') => setRequestFilter(value)}>
+                <SelectTrigger className='w-40 shrink-0'>
+                  <SelectValue placeholder='Filtrer par type' />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='all'>Tous les types</SelectItem>
+                  <SelectItem value='loan'>Prêts</SelectItem>
+                  <SelectItem value='subscription'>Abonnements</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
 
             <Button
               variant='outline'
@@ -309,47 +518,27 @@ export default function FinancePage () {
                 className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
               />
             </Button>
-            {
-              activeTab !== 'requests' && isAuthorized(UserRole.LIBRARIAN) && (
-            
-            <Button
-              onClick={() => {
-                setCurrentEntity({
-                  type: activeTab,
-                  data: {} as FinanceEntityData,
-                  isEditing: false
-                })
-                setIsDialogOpen(true)
-              }}
-              className={`shrink-0 ${
-                activeTab === 'loans'
-                  ? 'bg-orange-600 hover:bg-orange-700 text-white dark:bg-[orangered]/80 dark:hover:bg-[orangered] dark:text-[#050100]'
-                  : 'bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-500 dark:hover:bg-emerald-400 dark:text-emerald-950'
-              }`}
-            >
-              <Plus className='w-4 h-4 mr-2' />
-              <span className='hidden sm:inline'>
-                {activeTab === 'loans' ? 'Nouveau Prêt' : 'Nouvel Abonnement'}
-              </span>
-              <span className='sm:hidden'>Nouveau</span>
-            </Button>)}
           </div>
         </div>
 
         <FinanceTable
           data={
-            activeTab === 'loans'
-              ? filteredLoans
+            activeTab === 'active-loans'
+              ? paginatedActiveLoans
+              : activeTab === 'history'
+              ? paginatedHistory
+              : activeTab === 'requests'
+              ? paginatedRequests
               : activeTab === 'subscriptions'
-              ? filteredSubscriptions
-              : filteredRequests
+              ? paginatedSubscriptions
+              : paginatedPayments
           }
           activeTab={activeTab}
           isLoading={loading}
           onMarkReturned={handleMarkReturned}
           onEdit={item => {
             let formData: Record<string, unknown> = {}
-            if (activeTab === 'loans') {
+            if (activeTab === 'active-loans' || activeTab === 'history') {
               const loan = item as unknown as DashboardLoan
               formData = {
                 userId: loan.user.id,
@@ -376,7 +565,51 @@ export default function FinancePage () {
           }}
           onDelete={handleDelete}
           isAuthorized={isAuthorized}
+          onRefresh={fetchData}
         />
+
+        {/* PAGINATION CONTROLS */}
+        {(() => {
+          const currentData = activeTab === 'active-loans'
+            ? filteredActiveLoans
+            : activeTab === 'history'
+            ? filteredHistory
+            : activeTab === 'requests'
+            ? filteredRequests
+            : activeTab === 'subscriptions'
+            ? filteredSubscriptions
+            : filteredPayments
+          const totalPages = getTotalPages(currentData)
+          const currentPageNum = currentPage[activeTab]
+
+          if (totalPages <= 1) return null
+
+          return (
+            <div className='flex items-center justify-center gap-2 mt-6'>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => handlePageChange(activeTab, currentPageNum - 1)}
+                disabled={currentPageNum <= 1}
+              >
+                Précédent
+              </Button>
+
+              <span className='text-sm text-slate-600 dark:text-slate-400'>
+                Page {currentPageNum} sur {totalPages}
+              </span>
+
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => handlePageChange(activeTab, currentPageNum + 1)}
+                disabled={currentPageNum >= totalPages}
+              >
+                Suivant
+              </Button>
+            </div>
+          )
+        })()}
       </main>
 
       {/* DIALOG FORMULAIRE */}
@@ -385,7 +618,7 @@ export default function FinancePage () {
           <DialogHeader>
             <DialogTitle>
               {currentEntity?.isEditing ? 'Modifier' : 'Créer'}{' '}
-              {activeTab === 'loans' ? 'un prêt' : 'un abonnement'}
+              {activeTab === 'active-loans' ? 'un prêt' : 'un abonnement'}
             </DialogTitle>
           </DialogHeader>
 

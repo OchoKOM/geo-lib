@@ -74,6 +74,8 @@ model User {
   authorProfile AuthorProfile?
 
   loanRequests LoanRequest[]
+
+  subscriptionRequests SubscriptionRequest[]
 }
 
 model Session {
@@ -248,6 +250,13 @@ enum RequestStatus {
   REJECTED
 }
 
+enum SubscriptionType {
+  DAILY
+  WEEKLY
+  MONTHLY
+  ANNUAL
+}
+
 model Loan {
   id         String    @id @default(cuid())
   loanDate   DateTime  @default(now())
@@ -268,6 +277,7 @@ model Subscription {
   startDate DateTime @default(now())
   endDate   DateTime
   isActive  Boolean  @default(true)
+  remainingDaysAtSuspension Int?
 
   userId String @unique
   user   User   @relation(fields: [userId], references: [id])
@@ -283,4 +293,17 @@ model Payment {
 
   userId String
   user   User   @relation(fields: [userId], references: [id])
+}
+
+model SubscriptionRequest {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  status    RequestStatus @default(PENDING)
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  type      SubscriptionType @default(MONTHLY)
+
+  @@unique([userId]) // Un utilisateur ne peut faire qu'une demande à la fois
 }

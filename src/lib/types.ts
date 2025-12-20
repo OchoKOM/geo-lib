@@ -2,7 +2,7 @@
 // Ce fichier centralise tous les types de données dérivés de Prisma, ainsi que les types
 // spécifiques à l'application, pour garantir un typage strict partout.
 
-import { Prisma, UserRole, FileType, BookType } from '@prisma/client';
+import { Prisma, UserRole, FileType, BookType, SubscriptionType } from '@prisma/client';
 
 // ----------------------------------------------------
 // 1. TYPES DÉRIVÉS DES MODÈLES PRISMA (POUR LE FRONTEND)
@@ -149,7 +149,7 @@ export type DashboardBook = Prisma.BookGetPayload<{
 // ----------------------------------------------------
 
 // Exportation des Enums de Prisma pour un accès facile
-export { UserRole, FileType, BookType };
+export { UserRole, FileType, BookType, SubscriptionType };
 
 /**
  * Union des types d'entités manipulables dans le dashboard.
@@ -309,6 +309,7 @@ export type DashboardLoanRequest = Prisma.LoanRequestGetPayload<{
       select: {
         id: true;
         name: true;
+        username: true;
         email: true;
         avatarUrl: true;
       };
@@ -339,11 +340,31 @@ export type DashboardSubscription = Prisma.SubscriptionGetPayload<{
   };
 }>;
 
+/**
+ * Type pour une demande d'abonnement (SubscriptionRequest)
+ */
+export type DashboardSubscriptionRequest = Prisma.SubscriptionRequestGetPayload<{
+  include: {
+    user: {
+      select: {
+        id: true;
+        name: true;
+        username: true;
+        email: true;
+        avatarUrl: true;
+      };
+    };
+  };
+}>;
+
 // Mise à jour des types d'entités financières
-export type FinanceEntityType = 'loans' | 'subscriptions' | 'payments' | 'requests' | 'profile';
+export type FinanceEntityType = 'active-loans' | 'history' | 'requests' | 'subscriptions' | 'payments';
+
+// Import RequestStatus for use in filtering
+export { RequestStatus } from '@prisma/client';
 
 // Union des données possibles pour la table
-export type FinanceEntityData = DashboardLoan | DashboardSubscription | DashboardPayment | DashboardUser | DashboardLoanRequest;
+export type FinanceEntityData = DashboardLoan | DashboardSubscription | DashboardPayment | DashboardUser | DashboardLoanRequest | DashboardSubscriptionRequest;
 
 
 /**
@@ -399,7 +420,72 @@ export interface PaymentSchema {
 }
 export interface SubscriptionSchema {
     userId: string;
-    type: 'monthly' | 'yearly';
+    type: SubscriptionType;
     startDate: Date;
     endDate: Date;
 }
+
+// Types for dashboard actions data parameters
+export interface LoanCreateData {
+    userId: string;
+    bookId: string;
+    dueDate: string;
+}
+
+export interface SubscriptionCreateData {
+    userId: string;
+    type: SubscriptionType;
+}
+
+export interface PaymentCreateData {
+    userId: string;
+    amount: number;
+    reason: string;
+    loanId?: string;
+}
+
+export interface AuthorProfileCreateData {
+    userId: string;
+    biography: string;
+    dateOfDeath?: string;
+}
+
+export interface LoanUpdateData {
+    isReturned?: boolean;
+    returnDate?: Date;
+    dueDate?: Date;
+}
+
+export interface SubscriptionUpdateData {
+    isActive?: boolean;
+    endDate?: Date;
+    remainingDaysAtSuspension?: number | null;
+}
+
+export interface PaymentUpdateData {
+    amount?: number;
+    reason?: string;
+    loanId?: string;
+}
+
+// Union types for create and update actions
+export type CreateEntityData =
+    | FacultySchema
+    | DepartmentSchema
+    | StudyAreaSchema
+    | BookSchema
+    | LoanCreateData
+    | SubscriptionCreateData
+    | PaymentCreateData
+    | GhostAuthorSchema
+    | AuthorProfileCreateData;
+
+export type UpdateEntityData =
+    | Partial<FacultySchema>
+    | Partial<DepartmentSchema>
+    | Partial<StudyAreaSchema>
+    | Partial<BookSchema>
+    | LoanUpdateData
+    | SubscriptionUpdateData
+    | PaymentUpdateData
+    | UserUpdateSchema;
