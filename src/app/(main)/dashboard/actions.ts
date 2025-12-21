@@ -463,10 +463,12 @@ export async function createEntityAction(type: FinanceEntityType, data: any): Pr
             userId: authorUserId,
             biography: biography || '',
             dateOfDeath: dateOfDeath ? new Date(dateOfDeath) : null
-          }
+          },
+          include: { user: true }
         })
-        
-        await prisma.user.update({ where: { id: authorUserId }, data: { role: UserRole.AUTHOR } })
+        if (newEntity.user.role !== UserRole.AUTHOR && newEntity.user.role !== UserRole.ADMIN){
+          await prisma.user.update({ where: { id: authorUserId }, data: { role: UserRole.AUTHOR } })
+        }
         break
 
       case 'books':
