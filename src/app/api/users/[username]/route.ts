@@ -4,10 +4,10 @@ import prisma  from '@/lib/prisma'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { username: string } }
+  context: { params: Promise<{ username: string }> }
 ) {
   try {
-    const { username } = await params
+    const { username } = await context.params
 
     // Fetch user with related data
     const user = await prisma.user.findFirst({
