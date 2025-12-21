@@ -572,13 +572,17 @@ export async function updateEntityAction(type: FinanceEntityType, id: string, da
         break
       case 'books':
         // Logique livre existante conservée
-        const { studyAreaIds, publicationYear, authorId, documentFileId, departmentId, academicYearId, coverImageId, ...restBookUpdate } = data
-        
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { studyAreaIds, publicationYear, authorId, documentFileId, departmentId, academicYearId, coverImageId, author, department, studyAreas, coverImage, documentFile, academicYear, ...restBookUpdate } = data
+
+        const parsedPublicationYear = publicationYear ? parseInt(String(publicationYear), 10) : null
+        const isValidYear = parsedPublicationYear && !isNaN(parsedPublicationYear) && parsedPublicationYear > 0
+
         await prisma.book.update({
           where: { id },
           data: {
             ...restBookUpdate,
-            ...(publicationYear ? { postedAt: new Date(publicationYear, 0, 1) } : {}),
+            ...(isValidYear ? { postedAt: new Date(parsedPublicationYear, 0, 1) } : {}),
             ...(authorId ? { authorId } : { authorId: undefined }),
             ...(documentFileId ? { documentFileId } : {}),
             ...(departmentId ? { departmentId } : {}),
