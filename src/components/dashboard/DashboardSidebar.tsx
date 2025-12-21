@@ -1,4 +1,4 @@
-import { Database, ChevronLeft, LogOut, ShieldCheck } from 'lucide-react'
+import { ChevronLeft, LogOut, ShieldCheck, ShieldUser } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EntityType, DashboardUser, UserRole } from '@/lib/types'
 import { NAV_ITEMS } from '@/lib/dashboard-config'
@@ -35,7 +35,7 @@ export function DashboardSidebar({
       <div className='p-6 flex items-center justify-between bg-white dark:bg-slate-950'>
         <div className='flex items-center gap-2 text-slate-800 dark:text-white font-bold text-xl tracking-tight'>
           <div className='h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center text-white'>
-            <Database className='w-5 h-5' />
+            <ShieldUser className='w-5 h-5' />
           </div>
           GeoLib<span className='text-blue-600'>Admin</span>
         </div>
