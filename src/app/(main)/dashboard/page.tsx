@@ -266,6 +266,24 @@ export default function DashboardPage() {
       </div>
     )
 
+    if (currentUser.role === UserRole.READER)
+      return (
+        <div className='h-screen w-full flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4'>
+          <div className='bg-white dark:bg-slate-900 p-8 rounded-lg shadow-xl text-center max-w-md border border-slate-200 dark:border-slate-800'>
+            <Ban className='w-12 h-12 text-red-500 mx-auto mb-4' />
+            <h1 className='text-xl font-bold text-slate-800 dark:text-white mb-2'>
+              Accès Refusé
+            </h1>
+            <p className='text-slate-500 dark:text-slate-400 mb-6'>
+              Vous n&apos;avez pas les autorisations nécessaires pour accéder au tableau de bord administratif.
+            </p>
+            <Link href="/login" className={buttonVariants()}>
+              Se connecter
+            </Link>
+          </div>
+        </div>
+      )
+
   return (
     <div className='flex max-h-[calc(100vh-64px)] h-[calc(100vh-64px)] w-full bg-slate-50 dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-200 overflow-hidden'>
       
