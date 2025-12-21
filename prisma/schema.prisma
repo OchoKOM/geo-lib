@@ -254,7 +254,8 @@ enum SubscriptionType {
   DAILY
   WEEKLY
   MONTHLY
-  ANNUAL
+  SEMESTER
+  YEARLY
 }
 
 model Loan {
@@ -305,6 +306,7 @@ model SubscriptionRequest {
   user      User     @relation(fields: [userId], references: [id])
 
   type      SubscriptionType @default(MONTHLY)
+  isUpdate  Boolean  @default(false)
 
   @@unique([userId]) // Un utilisateur ne peut faire qu'une demande à la fois
 }

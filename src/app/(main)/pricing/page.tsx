@@ -1,31 +1,42 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useTransition, useState } from 'react'
 import { Check, CreditCard, ShieldCheck, Zap, Loader2, CalendarClock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/components/AuthProvider' // Assurez-vous que ce hook existe, sinon utilisez le contexte session
 import { showToast } from '@/hooks/useToast'
-import { subscribeUser } from '@/lib/pricing-actions'
-import { PRICING_PLANS } from '@/lib/pricing-plans'
+import { subscribeUser, hasActiveSubscription } from '@/lib/pricing-actions'
+import { PlanKey, PRICING_PLANS } from '@/lib/pricing-plans'
 import { useRouter } from 'next/navigation'
+import SubscriptionReceipt from '@/components/finances/SubscriptionReceipt'
+import { pdf } from '@react-pdf/renderer'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Label } from '@/components/ui/label'
 
 // Composant pour une carte de prix individuelle
-function PricingCard({ 
-  planKey, 
-  plan, 
-  isCurrentPlan, 
+function PricingCard({
+  planKey,
+  plan,
+  isCurrentPlan,
   isPopular,
   onSubscribe,
-  isPending 
-}: { 
-  planKey: string, 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  plan: any, 
-  isCurrentPlan: boolean, 
+  isPending
+}: {
+  planKey: PlanKey,
+  plan: (typeof PRICING_PLANS)[PlanKey],
+  isCurrentPlan: boolean,
   isPopular?: boolean,
-  onSubscribe: (key: string) => void,
+  onSubscribe: (key: PlanKey) => void,
   isPending: boolean
 }) {
   return (
@@ -73,7 +84,7 @@ function PricingCard({
       </CardContent>
       
       <CardFooter>
-        <Button 
+        <Button
           className={`w-full ${isPopular ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}
           variant={isPopular ? 'default' : 'outline'}
           onClick={() => onSubscribe(planKey)}
@@ -84,7 +95,7 @@ function PricingCard({
           ) : isCurrentPlan ? (
             'Prolonger mon abonnement'
           ) : (
-            'Choisir cette offre'
+            'Faire une demande'
           )}
         </Button>
       </CardFooter>
@@ -96,27 +107,65 @@ export default function PricingPage() {
   const { user } = useAuth() // Récupère l'utilisateur et potentiellement son statut d'abonnement via le contexte
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [activeSubscriptionDialogOpen, setActiveSubscriptionDialogOpen] = useState(false)
+  const [selectedPlanForDialog, setSelectedPlanForDialog] = useState<PlanKey | null>(null)
+  const [subscriptionChoice, setSubscriptionChoice] = useState<'update' | 'new' | null>(null)
 
 
-  // Handler pour l'abonnement
-  const handleSubscribe = (planKey: string) => {
+  // Handler pour la demande d'abonnement
+  const handleSubscribe = async (planKey: PlanKey, isUpdate: boolean = false) => {
     if (!user) {
-      showToast("Veuillez vous connecter pour vous abonner.", "destructive")
+      showToast("Veuillez vous connecter pour faire une demande d'abonnement.", "destructive")
       router.push('/login')
       return
     }
 
+    // Check if user has active subscription
+    const hasActive = await hasActiveSubscription()
+    if (hasActive && !isUpdate) {
+      // Open dialog to choose update or new subscription
+      setSelectedPlanForDialog(planKey)
+      setActiveSubscriptionDialogOpen(true)
+      return
+    }
+
     startTransition(async () => {
-      // @ts-expect-error Types stricts sur les clés
-      const result = await subscribeUser(planKey)
-      
-      if (result.success) {
+      const result = await subscribeUser(planKey, isUpdate)
+
+      if (result.success && result.requestId) {
+        // Générer le PDF du reçu
+        const doc = <SubscriptionReceipt
+          user={{ name: user.name, email: user.email }}
+          planKey={planKey}
+          requestId={result.requestId}
+          requestDate={new Date()}
+        />
+
+        const blob = await pdf(doc).toBlob()
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `recu-abonnement-${result.requestId.substring(0, 8)}.pdf`
+        link.click()
+        URL.revokeObjectURL(url)
+
         showToast(result.message, "default")
         router.refresh()
       } else {
         showToast(result.message, "destructive")
       }
     })
+  }
+
+  // Handler pour le choix d'abonnement dans le dialogue
+  const handleSubscriptionChoice = async () => {
+    if (!selectedPlanForDialog || !subscriptionChoice) return
+
+    const isUpdate = subscriptionChoice === 'update'
+    await handleSubscribe(selectedPlanForDialog, isUpdate)
+    setActiveSubscriptionDialogOpen(false)
+    setSubscriptionChoice(null)
+    setSelectedPlanForDialog(null)
   }
 
   return (
@@ -160,33 +209,58 @@ export default function PricingPage() {
       </div>
 
       {/* GRILLE DES PRIX */}
-      <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-3 md:gap-8 items-start">
-          
-          <PricingCard 
-            planKey="MONTHLY"
-            plan={PRICING_PLANS.MONTHLY}
-            isCurrentPlan={false} // Idéalement, comparer avec user.subscription.daysLeft
-            onSubscribe={handleSubscribe}
-            isPending={isPending}
-          />
+      <div className="max-w-7xl mx-auto space-y-12">
+        {/* Section Principale */}
+        <div>
+          <h2 className="text-2xl font-bold text-center text-slate-900 dark:text-white mb-8">Plans Principaux</h2>
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-3 md:gap-6 items-start">
+            <PricingCard
+              planKey="MONTHLY"
+              plan={PRICING_PLANS.MONTHLY}
+              isCurrentPlan={false}
+              onSubscribe={handleSubscribe}
+              isPending={isPending}
+            />
 
-          <PricingCard 
-            planKey="YEARLY"
-            plan={PRICING_PLANS.YEARLY}
-            isCurrentPlan={false}
-            isPopular={true}
-            onSubscribe={handleSubscribe}
-            isPending={isPending}
-          />
+            <PricingCard
+              planKey="YEARLY"
+              plan={PRICING_PLANS.YEARLY}
+              isCurrentPlan={false}
+              isPopular={true}
+              onSubscribe={handleSubscribe}
+              isPending={isPending}
+            />
 
-          <PricingCard 
-            planKey="SEMESTER"
-            plan={PRICING_PLANS.SEMESTER}
-            isCurrentPlan={false}
-            onSubscribe={handleSubscribe}
-            isPending={isPending}
-          />
+            <PricingCard
+              planKey="SEMESTER"
+              plan={PRICING_PLANS.SEMESTER}
+              isCurrentPlan={false}
+              onSubscribe={handleSubscribe}
+              isPending={isPending}
+            />
+          </div>
+        </div>
+
+        {/* Section Autres Plans */}
+        <div>
+          <h2 className="text-2xl font-bold text-center text-slate-900 dark:text-white mb-8">Autres Plans</h2>
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 md:gap-6 items-start max-w-4xl mx-auto">
+            <PricingCard
+              planKey="DAILY"
+              plan={PRICING_PLANS.DAILY}
+              isCurrentPlan={false}
+              onSubscribe={handleSubscribe}
+              isPending={isPending}
+            />
+
+            <PricingCard
+              planKey="WEEKLY"
+              plan={PRICING_PLANS.WEEKLY}
+              isCurrentPlan={false}
+              onSubscribe={handleSubscribe}
+              isPending={isPending}
+            />
+          </div>
         </div>
       </div>
 
@@ -206,6 +280,42 @@ export default function PricingPage() {
             {/* Autres FAQs si nécessaire */}
          </div>
       </div>
+
+      {/* Dialogue pour abonnement actif */}
+      <Dialog open={activeSubscriptionDialogOpen} onOpenChange={setActiveSubscriptionDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Abonnement Actif Détecté</DialogTitle>
+            <DialogDescription>
+              Vous avez déjà un abonnement actif. Que souhaitez-vous faire ?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <RadioGroup value={subscriptionChoice || ''} onValueChange={(value) => setSubscriptionChoice(value as 'update' | 'new')}>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="update" id="update" />
+                <Label htmlFor="update">
+                  Mettre à jour mon abonnement actuel (ajouter {selectedPlanForDialog ? PRICING_PLANS[selectedPlanForDialog].days : 0} jours)
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="new" id="new" />
+                <Label htmlFor="new">
+                  Créer un nouvel abonnement (remplacer l&apos;actuel)
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setActiveSubscriptionDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleSubscriptionChoice} disabled={!subscriptionChoice}>
+              Continuer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   )

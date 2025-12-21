@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:push": "prisma db push",
+    "db:push": "prisma db push && prisma generate",
     "db:seed": "prisma db seed",
     "postinstall": "prisma generate"
   },

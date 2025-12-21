@@ -13,13 +13,12 @@ import {
   GhostAuthorSchema,
   BookSchema,
   UserUpdateSchema,
-  FinanceEntityData,
 } from '@/lib/types'
 import { Prisma, RequestStatus } from '@prisma/client'
 import { revalidatePath } from 'next/cache'
 
 // Extension des types pour inclure les finances
-type FinanceEntityType = EntityType | 'active-loans' | 'loans' | 'subscriptions' | 'payments' | 'requests' | 'subscription-requests' | 'history' | 'profile' | 'author_profiles' | 'create_ghost_author'
+type FinanceEntityType = EntityType | 'loans' | 'loans' | 'subscriptions' | 'payments' | 'requests' | 'subscription-requests' | 'history' | 'profile' | 'author_profiles' | 'create_ghost_author'
 
 // --- TYPE DE RÉPONSE UNIFIÉ ---
 export type ActionResponse<T = null> = {
@@ -49,7 +48,7 @@ async function checkAuthAndRole(requiredRole: UserRole): Promise<{ user: Dashboa
 // ----------------------------------------------------
 export async function getDashboardStatsAction() {
   const auth = await checkAuthAndRole(UserRole.READER)
-  if (!auth.success) return { success: false, message: auth.message }
+  if (!auth.success) return { success: false, message: "Action non autorisée" }
 
   try {
     const [
@@ -102,14 +101,14 @@ export async function getDashboardStatsAction() {
 // ----------------------------------------------------
 export async function getDashboardDataAction(entityType: FinanceEntityType): Promise<ActionResponse<unknown[]>> {
   const auth = await checkAuthAndRole(UserRole.READER)
-  if (!auth.success) return { success: false, message: auth.message }
+  if (!auth.success) return { success: false, message: "Action non autorisée" }
 
   try {
     let data: unknown[] = []
 
     switch (entityType) {
       // --- SECTION FINANCES ---
-      case 'active-loans':
+      case 'loans':
         // Seuls les bibliothécaires et admins voient les prêts
         if (auth.user.role !== UserRole.LIBRARIAN && auth.user.role !== UserRole.ADMIN) {
            return { success: false, message: "Accès non autorisé aux prêts." }
@@ -186,6 +185,7 @@ export async function getDashboardDataAction(entityType: FinanceEntityType): Pro
            return { success: false, message: "Accès non autorisé aux demandes de prêt." }
         }
         data = await prisma.loanRequest.findMany({
+          where: { status: 'PENDING' },
           include: {
             user: { select: { id: true, name: true, username: true, email: true, avatarUrl: true } },
             book: { select: { id: true, title: true, available: true } }
@@ -295,7 +295,7 @@ export async function createEntityAction(type: FinanceEntityType, data: any): Pr
   if (type === 'subscriptions' || type === 'payments') requiredRole = UserRole.ADMIN
 
   const auth = await checkAuthAndRole(requiredRole)
-  if (!auth.success) return { success: false, message: auth.message }
+  if (!auth.success) return { success: false, message: "Action non autorisée" }
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -514,7 +514,7 @@ export async function updateEntityAction(type: FinanceEntityType, id: string, da
   if (type === 'users' || type === 'subscriptions' || type === 'payments') requiredRole = UserRole.ADMIN
   
   const auth = await checkAuthAndRole(requiredRole)
-  if (!auth.success) return { success: false, message: auth.message }
+  if (!auth.success) return { success: false, message: "Action non autorisée" }
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -570,8 +570,7 @@ export async function updateEntityAction(type: FinanceEntityType, id: string, da
         break
       case 'books':
         // Logique livre existante conservée
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { studyAreaIds, publicationYear, authorId, documentFileId, departmentId, academicYearId, coverImageId, documentFile, ...restBookUpdate } = data
+        const { studyAreaIds, publicationYear, authorId, documentFileId, departmentId, academicYearId, coverImageId, ...restBookUpdate } = data
         
         await prisma.book.update({
           where: { id },
@@ -621,7 +620,7 @@ export async function updateEntityAction(type: FinanceEntityType, id: string, da
 // ----------------------------------------------------
 export async function deleteEntityAction(type: FinanceEntityType, id: string): Promise<ActionResponse<null>> {
   const auth = await checkAuthAndRole(UserRole.ADMIN)
-  if (!auth.success) return { success: false, message: auth.message }
+  if (!auth.success) return { success: false, message: "Action non autorisée" }
 
   try {
     if (type === 'users' && id === auth.user.id) return { success: false, message: 'Auto-suppression interdite.' }
@@ -651,7 +650,7 @@ export async function deleteEntityAction(type: FinanceEntityType, id: string): P
 
 export async function approveLoanRequest(requestId: string): Promise<ActionResponse<null>> {
   const auth = await checkAuthAndRole(UserRole.LIBRARIAN)
-  if (!auth.success) return { success: false, message: auth.message }
+  if (!auth.success) return { success: false, message: "Action non autorisée" }
 
   try {
     // Récupérer la demande
@@ -739,11 +738,11 @@ export async function approveLoanRequest(requestId: string): Promise<ActionRespo
 
 export async function rejectLoanRequest(requestId: string): Promise<ActionResponse<null>> {
   const auth = await checkAuthAndRole(UserRole.LIBRARIAN)
-  if (!auth.success) return { success: false, message: auth.message }
+  if (!auth.success) return { success: false, message: "Action non autorisée" }
 
   try {
     // Récupérer la demande
-    const request = await prisma.loanRequest.findUnique({
+    const request = await prisma.loanRequest.findFirst({
       where: { id: requestId }
     })
 
@@ -771,7 +770,7 @@ export async function rejectLoanRequest(requestId: string): Promise<ActionRespon
 
 export async function approveSubscriptionRequest(requestId: string): Promise<ActionResponse<null>> {
   const auth = await checkAuthAndRole(UserRole.ADMIN)
-  if (!auth.success) return { success: false, message: auth.message }
+  if (!auth.success) return { success: false, message: "Action non autorisée" }
 
   try {
     const request = await prisma.subscriptionRequest.findUnique({
@@ -792,7 +791,7 @@ export async function approveSubscriptionRequest(requestId: string): Promise<Act
       where: { userId: request.userId }
     })
 
-    if (existingSub) {
+    if (existingSub && !request.isUpdate) {
       return { success: false, message: 'Cet utilisateur a déjà un abonnement.' }
     }
 
@@ -802,15 +801,35 @@ export async function approveSubscriptionRequest(requestId: string): Promise<Act
         data: { status: RequestStatus.APPROVED }
       })
 
-      await tx.subscription.create({
-        data: {
-          userId: request.userId,
-          startDate: new Date(),
-          endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 jours par défaut
-          isActive: true,
-          type: 'MONTHLY'
-        }
-      })
+      if (request.isUpdate && existingSub) {
+        // Mettre à jour l'abonnement existant en ajoutant les jours
+        const currentEndDate = new Date(existingSub.endDate)
+        const planDays = getPlanDays(request.type)
+        currentEndDate.setDate(currentEndDate.getDate() + planDays)
+
+        await tx.subscription.update({
+          where: { id: existingSub.id },
+          data: {
+            endDate: currentEndDate,
+            isActive: true
+          }
+        })
+      } else {
+        // Créer un nouvel abonnement
+        const startDate = new Date()
+        const endDate = new Date(startDate)
+        endDate.setDate(startDate.getDate() + getPlanDays(request.type))
+
+        await tx.subscription.create({
+          data: {
+            userId: request.userId,
+            startDate,
+            endDate,
+            isActive: true,
+            type: request.type
+          }
+        })
+      }
     })
 
     revalidatePath('/finances')
@@ -821,9 +840,21 @@ export async function approveSubscriptionRequest(requestId: string): Promise<Act
   }
 }
 
+// Fonction helper pour obtenir les jours du plan
+function getPlanDays(planType: string): number {
+  const planMap: Record<string, number> = {
+    'DAILY': 1,
+    'WEEKLY': 7,
+    'MONTHLY': 30,
+    'SEMESTER': 180,
+    'YEARLY': 365
+  }
+  return planMap[planType] || 30
+}
+
 export async function rejectSubscriptionRequest(requestId: string): Promise<ActionResponse<null>> {
   const auth = await checkAuthAndRole(UserRole.ADMIN)
-  if (!auth.success) return { success: false, message: auth.message }
+  if (!auth.success) return { success: false, message: "Action non autorisée" }
 
   try {
     const request = await prisma.subscriptionRequest.findUnique({
@@ -851,9 +882,9 @@ export async function rejectSubscriptionRequest(requestId: string): Promise<Acti
   }
 }
 
-export async function suspendSubscription(subscriptionId: string, data: { type: string; resumption: boolean; endDate: string }): Promise<ActionResponse<null>> {
+export async function suspendSubscription(subscriptionId: string, options?: { reason?: string; endDate?: string }): Promise<ActionResponse<null>> {
   const auth = await checkAuthAndRole(UserRole.ADMIN)
-  if (!auth.success) return { success: false, message: auth.message }
+  if (!auth.success) return { success: false, message:  "Action non autorisée" }
 
   try {
     const subscription = await prisma.subscription.findUnique({
@@ -869,13 +900,21 @@ export async function suspendSubscription(subscriptionId: string, data: { type: 
     const endDate = new Date(subscription.endDate)
     const remainingDays = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 3600 * 24))
 
+    const updateData: Record<string, unknown> = {
+      isActive: false,
+      remainingDaysAtSuspension: remainingDays > 0 ? remainingDays : null
+    }
+
+    // Si une date de fin spécifique est fournie, l'utiliser, sinon suspendre immédiatement
+    if (options?.endDate) {
+      updateData.endDate = new Date(options.endDate)
+    } else {
+      updateData.endDate = new Date() // Suspension stops the subscription immediately
+    }
+
     await prisma.subscription.update({
       where: { id: subscriptionId },
-      data: {
-        isActive: false,
-        endDate: new Date(), // Suspension stops the subscription immediately
-        remainingDaysAtSuspension: remainingDays > 0 ? remainingDays : null
-      }
+      data: updateData
     })
 
     revalidatePath('/finances')
@@ -886,9 +925,9 @@ export async function suspendSubscription(subscriptionId: string, data: { type: 
   }
 }
 
-export async function activateSubscription(subscriptionId: string, data: { type: string; resumption: boolean; endDate: string }): Promise<ActionResponse<null>> {
+export async function activateSubscription(subscriptionId: string, options?: { resumption?: boolean; endDate?: string }): Promise<ActionResponse<null>> {
   const auth = await checkAuthAndRole(UserRole.ADMIN)
-  if (!auth.success) return { success: false, message: auth.message }
+  if (!auth.success) return { success: false, message: "Action non autorisée" }
 
   try {
     const subscription = await prisma.subscription.findUnique({
@@ -901,12 +940,15 @@ export async function activateSubscription(subscriptionId: string, data: { type:
 
     const updateData = { isActive: true } as Record<string, unknown>
 
-    if (data.resumption && subscription.remainingDaysAtSuspension && subscription.remainingDaysAtSuspension > 0) {
+    if (options?.resumption && subscription.remainingDaysAtSuspension && subscription.remainingDaysAtSuspension > 0) {
       // Utiliser les jours restants pour la reprise
       const newEndDate = new Date()
       newEndDate.setDate(newEndDate.getDate() + subscription.remainingDaysAtSuspension)
       updateData.endDate = newEndDate
       updateData.remainingDaysAtSuspension = null // Réinitialiser après utilisation
+    } else if (options?.endDate) {
+      // Utiliser la date de fin spécifique fournie
+      updateData.endDate = new Date(options.endDate)
     } else {
       // Nouvelle activation avec une date par défaut (30 jours)
       updateData.endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)

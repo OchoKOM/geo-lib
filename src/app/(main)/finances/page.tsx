@@ -53,14 +53,14 @@ import {
 
 export default function FinancePage () {
   const { user } = useAuth()
-  const [activeTab, setActiveTab] = useState<FinanceEntityType>('active-loans')
+  const [activeTab, setActiveTab] = useState<FinanceEntityType>('loans')
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [requestFilter, setRequestFilter] = useState<'all' | 'loan' | 'subscription'>('all')
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState<Record<string, number>>({
-    'active-loans': 1,
+    'loans': 1,
     'history': 1,
     'requests': 1,
     'subscriptions': 1,
@@ -194,7 +194,7 @@ export default function FinancePage () {
 
   // --- PAGINATION ---
   const paginatedActiveLoans = useMemo(() => {
-    const startIndex = (currentPage['active-loans'] - 1) * pageSize
+    const startIndex = (currentPage['loans'] - 1) * pageSize
     return filteredActiveLoans.slice(startIndex, startIndex + pageSize)
   }, [filteredActiveLoans, currentPage, pageSize])
 
@@ -235,8 +235,8 @@ export default function FinancePage () {
     setLoading(true)
     try {
       // 1. Charger les données principales
-      if (activeTab === 'active-loans') {
-        const res = await getDashboardDataAction('active-loans')
+      if (activeTab === 'loans') {
+        const res = await getDashboardDataAction('loans')
         if (res.success && res.data) {
           setActiveLoans(res.data as DashboardLoan[])
         }
@@ -311,7 +311,7 @@ export default function FinancePage () {
         const uRes = await getDashboardDataAction('users')
         if (uRes.success && uRes.data) setUsersList(uRes.data as DashboardUser[])
       }
-      if (booksList.length === 0 && (activeTab === 'active-loans' || activeTab === 'history')) {
+      if (booksList.length === 0 && (activeTab === 'loans' || activeTab === 'history')) {
         const bRes = await getDashboardDataAction('books')
         if (bRes.success && bRes.data) setBooksList(bRes.data as DashboardBook[])
       }
@@ -415,9 +415,9 @@ export default function FinancePage () {
 
         <div className='flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg overflow-x-auto'>
           <button
-            onClick={() => setActiveTab('active-loans')}
+            onClick={() => setActiveTab('loans')}
             className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'active-loans'
+              activeTab === 'loans'
                 ? 'bg-white dark:bg-muted shadow text-orange-600 dark:text-orange-400'
                 : 'text-slate-500 hover:text-muted-foreground'
             }`}
@@ -462,7 +462,7 @@ export default function FinancePage () {
       <main className='flex-1 max-w-7xl w-full mx-auto p-6'>
         <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6'>
           <h2 className='text-lg font-semibold text-slate-800 dark:text-slate-200'>
-            {(activeTab === 'active-loans' || activeTab === 'history')
+            {(activeTab === 'loans' || activeTab === 'history')
               ? 'Registre des Prêts'
               : activeTab === 'subscriptions'
               ? 'Liste des Abonnements'
@@ -475,7 +475,7 @@ export default function FinancePage () {
               <Search className='absolute left-2.5 top-2.5 h-4 w-4 text-slate-400' />
               <Input
                 placeholder={
-                  activeTab === 'active-loans' || activeTab === 'history'
+                  activeTab === 'loans' || activeTab === 'history'
                     ? 'Rechercher un prêt, un livre...'
                     : activeTab === 'subscriptions'
                     ? 'Rechercher un abonné...'
@@ -517,7 +517,7 @@ export default function FinancePage () {
 
         <FinanceTable
           data={
-            activeTab === 'active-loans'
+            activeTab === 'loans'
               ? paginatedActiveLoans
               : activeTab === 'history'
               ? paginatedHistory
@@ -533,7 +533,7 @@ export default function FinancePage () {
           onEdit={item => {
             let formData: Record<string, unknown> = {}
             let entityType: FinanceEntityType = activeTab
-            if (activeTab === 'active-loans' || activeTab === 'history') {
+            if (activeTab === 'loans' || activeTab === 'history') {
               entityType = 'loans'
               const loan = item as unknown as DashboardLoan
               formData = {
@@ -566,7 +566,7 @@ export default function FinancePage () {
 
         {/* PAGINATION CONTROLS */}
         {(() => {
-          const currentData = activeTab === 'active-loans'
+          const currentData = activeTab === 'loans'
             ? filteredActiveLoans
             : activeTab === 'history'
             ? filteredHistory
@@ -614,7 +614,7 @@ export default function FinancePage () {
           <DialogHeader>
             <DialogTitle>
               {currentEntity?.isEditing ? 'Modifier' : 'Créer'}{' '}
-              {activeTab === 'active-loans' ? 'un prêt' : 'un abonnement'}
+              {activeTab === 'loans' ? 'un prêt' : 'un abonnement'}
             </DialogTitle>
           </DialogHeader>
 

@@ -1,7 +1,6 @@
 'use client'
 
 import {
-  Trash2,
   AlertTriangle,
   CheckCircle,
   CalendarClock,
@@ -10,7 +9,8 @@ import {
   Printer,
   Loader2,
   Eye,
-  MoreVertical
+  MoreVertical,
+  Settings2
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -39,7 +39,14 @@ import {
   DropdownMenuTrigger
 } from '../ui/dropdown-menu'
 import { showToast } from '@/hooks/useToast'
-import { approveLoanRequest, rejectLoanRequest, suspendSubscription, activateSubscription } from '@/app/(main)/dashboard/actions'
+import {
+  approveLoanRequest,
+  rejectLoanRequest,
+  approveSubscriptionRequest,
+  rejectSubscriptionRequest,
+  suspendSubscription,
+  activateSubscription
+} from '@/app/(main)/dashboard/actions'
 import {
   Dialog,
   DialogContent,
@@ -85,16 +92,22 @@ export function FinanceTable ({
   const [loanToMark, setLoanToMark] = useState<DashboardLoan | null>(null)
 
   // États pour le dialogue d'action d'abonnement
-  const [subscriptionActionDialogOpen, setSubscriptionActionDialogOpen] = useState(false)
-  const [selectedSubscription, setSelectedSubscription] = useState<DashboardSubscription | null>(null)
-  const [actionType, setActionType] = useState<'suspend' | 'activate' | null>(null)
+  const [subscriptionActionDialogOpen, setSubscriptionActionDialogOpen] =
+    useState(false)
+  const [selectedSubscription, setSelectedSubscription] =
+    useState<DashboardSubscription | null>(null)
+  const [actionType, setActionType] = useState<'suspend' | 'activate' | null>(
+    null
+  )
   const [actionReason, setActionReason] = useState('')
   const [actionEndDate, setActionEndDate] = useState('')
   const [actionResumption, setActionResumption] = useState(false)
 
   // États pour le dialogue de détails d'abonnement
-  const [subscriptionDetailsDialogOpen, setSubscriptionDetailsDialogOpen] = useState(false)
-  const [selectedSubscriptionForDetails, setSelectedSubscriptionForDetails] = useState<DashboardSubscription | null>(null)
+  const [subscriptionDetailsDialogOpen, setSubscriptionDetailsDialogOpen] =
+    useState(false)
+  const [selectedSubscriptionForDetails, setSelectedSubscriptionForDetails] =
+    useState<DashboardSubscription | null>(null)
 
   // Ouvre le dialogue de détails d'abonnement
   const triggerSubscriptionDetails = (sub: DashboardSubscription) => {
@@ -122,14 +135,6 @@ export function FinanceTable ({
     }
   }
 
-  // Ouvre le dialogue de confirmation
-  const triggerDeleteConfirm = (
-    type: FinanceEntityType,
-    id: string
-  ) => {
-    setItemToDelete({ type, id })
-    setDeleteDialogOpen(true)
-  }
 
   // Exécute la suppression et ferme le dialogue
   function confirmDelete () {
@@ -161,7 +166,14 @@ export function FinanceTable ({
   // Exécute l'approbation et ferme le dialogue
   function confirmApprove () {
     if (itemToApprove) {
-      handleApprove(itemToApprove)
+      const item = data.find(d => d.id === itemToApprove)
+      if (item && 'book' in item) {
+        // It's a loan request
+        handleApprove(itemToApprove, 'loan')
+      } else if (item) {
+        // It's a subscription request
+        handleApprove(itemToApprove, 'subscription')
+      }
       setApproveDialogOpen(false)
       setItemToApprove(null)
     }
@@ -170,7 +182,14 @@ export function FinanceTable ({
   // Exécute le rejet et ferme le dialogue
   function confirmReject () {
     if (itemToReject) {
-      handleReject(itemToReject)
+      const item = data.find(d => d.id === itemToReject)
+      if (item && 'book' in item) {
+        // It's a loan request
+        handleReject(itemToReject, 'loan')
+      } else if (item) {
+        // It's a subscription request
+        handleReject(itemToReject, 'subscription')
+      }
       setRejectDialogOpen(false)
       setItemToReject(null)
     }
@@ -185,69 +204,85 @@ export function FinanceTable ({
     }
   }
 
-  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [processingId, setProcessingId] = useState<string | null>(null)
 
-  const handleApprove = async (id: string) => {
-    setProcessingId(id);
-    const res = await approveLoanRequest(id);
+  const handleApprove = async (id: string, type: 'loan' | 'subscription') => {
+    setProcessingId(id)
+    const res =
+      type === 'loan'
+        ? await approveLoanRequest(id)
+        : await approveSubscriptionRequest(id)
     if (res.success) {
-      showToast("Demande approuvée", "success");
-      onRefresh();
+      showToast('Demande approuvée', 'success')
+      onRefresh()
     } else {
-      showToast("Erreur lors de l'approbation de la demande", "destructive");
+      showToast(
+        res.message || "Erreur lors de l'approbation de la demande",
+        res.message ? 'warning' : 'destructive'
+      )
     }
-    setProcessingId(null);
-  };
+    setProcessingId(null)
+  }
 
-  const handleReject = async (id: string) => {
-    setProcessingId(id);
-    const res = await rejectLoanRequest(id);
+  const handleReject = async (id: string, type: 'loan' | 'subscription') => {
+    setProcessingId(id)
+    const res =
+      type === 'loan'
+        ? await rejectLoanRequest(id)
+        : await rejectSubscriptionRequest(id)
     if (res.success) {
-      showToast("Demande rejetée");
-      onRefresh();
+      showToast('Demande rejetée')
+      onRefresh()
     }
-    setProcessingId(null);
-  };
-
-
+    setProcessingId(null)
+  }
 
   // Ouvre le dialogue d'action d'abonnement
-  const triggerSubscriptionAction = (sub: DashboardSubscription, action: 'suspend' | 'activate') => {
-    setSelectedSubscription(sub);
-    setActionType(action);
-    setActionReason('');
-    setActionEndDate('');
-    setActionResumption(false);
-    setSubscriptionActionDialogOpen(true);
-  };
+  const triggerSubscriptionAction = (
+    sub: DashboardSubscription,
+    action: 'suspend' | 'activate'
+  ) => {
+    setSelectedSubscription(sub)
+    setActionType(action)
+    setActionReason('')
+    setActionEndDate('')
+    setActionResumption(false)
+    setSubscriptionActionDialogOpen(true)
+  }
 
   // Confirme l'action d'abonnement et ferme le dialogue
   const confirmSubscriptionAction = async () => {
-    if (!selectedSubscription || !actionType) return;
+    if (!selectedSubscription || !actionType) return
 
-    setProcessingId(selectedSubscription.id);
+    setProcessingId(selectedSubscription.id)
     const data = {
       type: actionType,
       resumption: actionResumption,
       endDate: actionEndDate
-    };
-    const res = actionType === 'suspend' ? await suspendSubscription(selectedSubscription.id, data) : await activateSubscription(selectedSubscription.id, data);
-    if (res.success) {
-      showToast(actionType === 'suspend' ? "Abonnement suspendu" : "Abonnement activé", "success");
-      setSubscriptionActionDialogOpen(false);
-      setSelectedSubscription(null);
-      setActionType(null);
-      setActionReason('');
-      setActionEndDate('');
-      setActionResumption(false);
-      onRefresh();
-    } else {
-      console.log(res);
-      
-      showToast("Erreur lors de la mise à jour de l'abonnement", "destructive");
     }
-    setProcessingId(null);
-  };
+    const res =
+      actionType === 'suspend'
+        ? await suspendSubscription(selectedSubscription.id, data)
+        : await activateSubscription(selectedSubscription.id, data)
+    if (res.success) {
+      showToast(
+        actionType === 'suspend' ? 'Abonnement suspendu' : 'Abonnement activé',
+        'success'
+      )
+      setSubscriptionActionDialogOpen(false)
+      setSelectedSubscription(null)
+      setActionType(null)
+      setActionReason('')
+      setActionEndDate('')
+      setActionResumption(false)
+      onRefresh()
+    } else {
+      console.log(res)
+
+      showToast("Erreur lors de la mise à jour de l'abonnement", 'destructive')
+    }
+    setProcessingId(null)
+  }
 
   if (isLoading && !data.length) {
     return (
@@ -277,7 +312,7 @@ export function FinanceTable ({
             {activeTab === 'history' && (
               <th className='px-6 py-4 font-medium text-slate-500'>Type</th>
             )}
-            {(activeTab === 'active-loans' || activeTab === 'history') && (
+            {(activeTab === 'loans' || activeTab === 'history') && (
               <>
                 <th className='px-6 py-4 font-medium text-slate-500'>
                   Livre Emprunté
@@ -301,14 +336,21 @@ export function FinanceTable ({
             )}
             {activeTab === 'payments' && (
               <>
-                <th className='px-6 py-4 font-medium text-slate-500'>Montant</th>
+                <th className='px-6 py-4 font-medium text-slate-500'>
+                  Montant
+                </th>
                 <th className='px-6 py-4 font-medium text-slate-500'>Date</th>
               </>
             )}
             {activeTab === 'requests' && (
               <>
                 <th className='px-6 py-4 font-medium text-slate-500'>Type</th>
-                <th className='px-6 py-4 font-medium text-slate-500'>Détails</th>
+                <th className='px-6 py-4 font-medium text-slate-500'>
+                  Type de Demande
+                </th>
+                <th className='px-6 py-4 font-medium text-slate-500'>
+                  Détails
+                </th>
                 <th className='px-6 py-4 font-medium text-slate-500'>Statut</th>
               </>
             )}
@@ -346,7 +388,10 @@ export function FinanceTable ({
                       </div>
                     </td>
                     <td className='px-6 py-4'>
-                      <Badge variant='outline' className='bg-blue-50 text-blue-700 border-blue-200'>
+                      <Badge
+                        variant='outline'
+                        className='bg-blue-50 text-blue-700 border-blue-200'
+                      >
                         Prêt
                       </Badge>
                     </td>
@@ -366,7 +411,8 @@ export function FinanceTable ({
                       <span
                         className={cn(
                           'font-medium',
-                          new Date(loan.dueDate) < new Date() && !loan.returnDate
+                          new Date(loan.dueDate) < new Date() &&
+                            !loan.returnDate
                             ? 'text-red-600'
                             : 'text-slate-700 dark:text-slate-300'
                         )}
@@ -413,7 +459,11 @@ export function FinanceTable ({
 
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button size='icon' variant='ghost' className='h-8 w-8'>
+                            <Button
+                              size='icon'
+                              variant='ghost'
+                              className='h-8 w-8'
+                            >
                               <MoreVertical className='w-4 h-4' />
                             </Button>
                           </DropdownMenuTrigger>
@@ -431,8 +481,6 @@ export function FinanceTable ({
                                 comme retourné
                               </DropdownMenuItem>
                             )}
-
-
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -449,12 +497,17 @@ export function FinanceTable ({
                         <User className='w-4 h-4 text-slate-400' />
                         <div>
                           <p className='font-medium'>{req.user.name}</p>
-                          <p className='text-xs text-slate-500'>{req.user.email}</p>
+                          <p className='text-xs text-slate-500'>
+                            {req.user.email}
+                          </p>
                         </div>
                       </div>
                     </td>
                     <td className='p-4'>
-                      <Badge variant='outline' className='bg-yellow-50 text-yellow-700 border-yellow-200'>
+                      <Badge
+                        variant='outline'
+                        className='bg-yellow-50 text-yellow-700 border-yellow-200'
+                      >
                         Demande de prêt
                       </Badge>
                     </td>
@@ -464,7 +517,11 @@ export function FinanceTable ({
                     </td>
                     <td className='p-4'>
                       <Badge variant='secondary'>
-                        {req.status === 'APPROVED' ? 'Approuvée' : req.status === 'REJECTED' ? 'Rejetée' : 'En attente'}
+                        {req.status === 'APPROVED'
+                          ? 'Approuvée'
+                          : req.status === 'REJECTED'
+                          ? 'Rejetée'
+                          : 'En attente'}
                       </Badge>
                     </td>
                     <td className='p-4 text-right'>
@@ -482,21 +539,28 @@ export function FinanceTable ({
                         <User className='w-4 h-4 text-slate-400' />
                         <div>
                           <p className='font-medium'>{req.user.name}</p>
-                          <p className='text-xs text-slate-500'>{req.user.email}</p>
+                          <p className='text-xs text-slate-500'>
+                            {req.user.email}
+                          </p>
                         </div>
                       </div>
                     </td>
                     <td className='p-4'>
-                      <Badge variant='outline' className='bg-purple-50 text-purple-700 border-purple-200'>
+                      <Badge
+                        variant='outline'
+                        className='bg-purple-50 text-purple-700 border-purple-200'
+                      >
                         Demande d&apos;abonnement
                       </Badge>
                     </td>
-                    <td className='p-4'>
-                      -
-                    </td>
+                    <td className='p-4'>-</td>
                     <td className='p-4'>
                       <Badge variant='secondary'>
-                        {req.status === 'APPROVED' ? 'Approuvée' : req.status === 'REJECTED' ? 'Rejetée' : 'En attente'}
+                        {req.status === 'APPROVED'
+                          ? 'Approuvée'
+                          : req.status === 'REJECTED'
+                          ? 'Rejetée'
+                          : 'En attente'}
                       </Badge>
                     </td>
                     <td className='p-4 text-right'>
@@ -505,10 +569,8 @@ export function FinanceTable ({
                   </tr>
                 )
               }
-            }
-          )}
-
-          {(activeTab === 'active-loans') &&
+            })}
+          {activeTab === 'loans' &&
             (data as DashboardLoan[]).map(loan => (
               <tr
                 key={loan.id}
@@ -578,59 +640,49 @@ export function FinanceTable ({
                 </td>
                 <td className='px-6 py-4 text-right'>
                   <div className='flex justify-end items-center gap-2'>
-                    <Button
-                      size='icon'
-                      variant='outline'
-                      className='h-8 w-8'
-                      onClick={() => handlePrint(loan)}
-                      disabled={printingId === loan.id}
-                    >
-                      {printingId === loan.id ? (
-                        <Loader2 className='w-4 h-4 animate-spin' />
-                      ) : (
-                        <Printer className='w-4 h-4' />
-                      )}
-                    </Button>
-
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button size='icon' variant='ghost' className='h-8 w-8'>
-                          <MoreVertical className='w-4 h-4' />
+                        <Button variant='outline' className='h-8'>
+                          <Settings2 className='w-4 h-4' /> Options
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align='end' className='w-56'>
-                        <DropdownMenuItem onClick={() => onEdit(loan)}>
-                          <Eye className='w-4 h-4 mr-2' /> Voir les détails
+                        <DropdownMenuItem
+                          onClick={() => onEdit(loan)}
+                          className='text-blue-600 focus:text-blue-600'
+                        >
+                          <Eye className='w-4 h-4 mr-2 text-inherit' /> Voir les
+                          détails
                         </DropdownMenuItem>
 
                         {!loan.returnDate && onMarkReturned && (
                           <DropdownMenuItem
                             onClick={() => triggerMarkReturnedConfirm(loan)}
-                            className='text-emerald-600'
+                            className='text-emerald-600 focus:text-emerald-600'
                           >
-                            <CheckCircle className='w-4 h-4 mr-2' /> Marquer
-                            comme retourné
+                            <CheckCircle className='w-4 h-4 mr-2 text-inherit' />{' '}
+                            Marquer comme retourné
                           </DropdownMenuItem>
                         )}
-
-                        {isAuthorized(UserRole.ADMIN) && (
+                        {
                           <DropdownMenuItem
-                            className='text-red-600 focus:text-red-600'
-                            onClick={() =>
-                              triggerDeleteConfirm('active-loans', loan.id)
-                            }
+                            onClick={() => handlePrint(loan)}
+                            className='text-yellow-600 focus:text-yellow-600'
                           >
-                            <Trash2 className='w-4 h-4 mr-2' /> Supprimer le
-                            prêt
+                            {printingId === loan.id ? (
+                              <Loader2 className='w-4 h-4 animate-spin text-inherit' />
+                            ) : (
+                              <Printer className='w-4 h-4 text-inherit' />
+                            )}
+                            Générer le reçu
                           </DropdownMenuItem>
-                        )}
+                        }
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
                 </td>
               </tr>
             ))}
-
           {activeTab === 'subscriptions' &&
             (data as DashboardSubscription[]).map(sub => (
               <tr
@@ -693,16 +745,21 @@ export function FinanceTable ({
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button size='sm' variant='outline' className='h-8'>
-                            Actions
+                            <Settings2 className='w-4 h-4' />
+                            Options
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align='end' className='w-48'>
-                          <DropdownMenuItem onClick={() => triggerSubscriptionDetails(sub)}>
+                          <DropdownMenuItem
+                            onClick={() => triggerSubscriptionDetails(sub)}
+                          >
                             <Eye className='w-4 h-4 mr-2' /> Voir les détails
                           </DropdownMenuItem>
                           {sub.isActive ? (
                             <DropdownMenuItem
-                              onClick={() => triggerSubscriptionAction(sub, 'suspend')}
+                              onClick={() =>
+                                triggerSubscriptionAction(sub, 'suspend')
+                              }
                               className='text-red-600 focus:text-red-600'
                               disabled={processingId === sub.id}
                             >
@@ -715,7 +772,9 @@ export function FinanceTable ({
                             </DropdownMenuItem>
                           ) : (
                             <DropdownMenuItem
-                              onClick={() => triggerSubscriptionAction(sub, 'activate')}
+                              onClick={() =>
+                                triggerSubscriptionAction(sub, 'activate')
+                              }
                               className='text-emerald-600 focus:text-emerald-600'
                               disabled={processingId === sub.id}
                             >
@@ -735,12 +794,17 @@ export function FinanceTable ({
               </tr>
             ))}
           {activeTab === 'requests' &&
-            (data as (DashboardLoanRequest | DashboardSubscriptionRequest)[]).map(item => {
+            (
+              data as (DashboardLoanRequest | DashboardSubscriptionRequest)[]
+            ).map(item => {
               if ('book' in item) {
                 // It's a loan request
                 const req = item as DashboardLoanRequest
                 return (
-                  <tr key={req.id} className='group hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors'>
+                  <tr
+                    key={req.id}
+                    className='group hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors'
+                  >
                     <td className='px-6 py-4'>
                       <div className='flex items-center gap-3'>
                         <div className='w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500'>
@@ -748,7 +812,9 @@ export function FinanceTable ({
                         </div>
                         <div>
                           <p className='font-medium text-slate-900 dark:text-slate-100'>
-                            {req.user?.name || req.user?.username || 'Utilisateur inconnu'}
+                            {req.user?.name ||
+                              req.user?.username ||
+                              'Utilisateur inconnu'}
                           </p>
                           <p className='text-xs text-slate-500'>
                             {req.user?.email}
@@ -757,7 +823,10 @@ export function FinanceTable ({
                       </div>
                     </td>
                     <td className='px-6 py-4'>
-                      <Badge variant='outline' className='bg-yellow-50 text-yellow-700 border-yellow-200'>
+                      <Badge
+                        variant='outline'
+                        className='bg-yellow-50 text-yellow-700 border-yellow-200'
+                      >
                         Demande de prêt
                       </Badge>
                     </td>
@@ -771,39 +840,58 @@ export function FinanceTable ({
                     </td>
                     <td className='px-6 py-4'>
                       <Badge variant='secondary'>
-                        {req.status === 'APPROVED' ? 'Approuvée' : req.status === 'REJECTED' ? 'Rejetée' : 'En attente'}
+                        {req.status === 'APPROVED'
+                          ? 'Approuvée'
+                          : req.status === 'REJECTED'
+                          ? 'Rejetée'
+                          : 'En attente'}
                       </Badge>
                     </td>
                     <td className='px-6 py-4 text-right'>
                       <div className='flex justify-end gap-2'>
-                        {req.status === 'PENDING' && isAuthorized(UserRole.LIBRARIAN) && (
-                          <>
-                            <Button
-                              size='sm'
-                              variant='outline'
-                              className='h-8'
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant='outline' className='h-8'>
+                              <Settings2 className='w-4 h-4' /> Options
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align='end' className='w-56'>
+                            {req.status === 'PENDING' && isAuthorized(UserRole.LIBRARIAN) ? (
+                              <>
+                              <DropdownMenuItem
                               onClick={() => triggerApproveConfirm(req.id)}
+                              className='text-emerald-600 focus:text-emerald-600'
                               disabled={processingId === req.id}
                             >
                               {processingId === req.id ? (
                                 <Loader2 className='w-4 h-4 animate-spin mr-2' />
                               ) : (
                                 <CheckCircle className='w-4 h-4 mr-2' />
-                              )}
+                              )}{' '}
                               Approuver
-                            </Button>
-                            <Button
-                              size='sm'
-                              variant='destructive'
-                              className='h-8'
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
                               onClick={() => triggerRejectConfirm(req.id)}
-                              disabled={processingId === req.id}
+                              className='text-orange-600 focus:text-orange-600'
                             >
-                              <AlertTriangle className='w-4 h-4 mr-2' />
+                              {processingId === req.id ? (
+                                <Loader2 className='w-4 h-4 animate-spin mr-2' />
+                              ) : (
+                                <AlertTriangle className='w-4 h-4 mr-2' />
+                              )}
                               Rejeter
-                            </Button>
-                          </>
-                        )}
+                            </DropdownMenuItem>
+                              </>
+                            ) : (
+                              <DropdownMenuItem
+                              >
+                                {/* Non autorisé */}
+                                <AlertTriangle className='w-4 h-4 mr-2' />
+                                Action non disponible
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </td>
                   </tr>
@@ -812,7 +900,10 @@ export function FinanceTable ({
                 // It's a subscription request
                 const req = item as DashboardSubscriptionRequest
                 return (
-                  <tr key={req.id} className='group hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors'>
+                  <tr
+                    key={req.id}
+                    className='group hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors'
+                  >
                     <td className='px-6 py-4'>
                       <div className='flex items-center gap-3'>
                         <div className='w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500'>
@@ -820,7 +911,9 @@ export function FinanceTable ({
                         </div>
                         <div>
                           <p className='font-medium text-slate-900 dark:text-slate-100'>
-                            {req.user?.name || req.user?.username || 'Utilisateur inconnu'}
+                            {req.user?.name ||
+                              req.user?.username ||
+                              'Utilisateur inconnu'}
                           </p>
                           <p className='text-xs text-slate-500'>
                             {req.user?.email}
@@ -829,8 +922,16 @@ export function FinanceTable ({
                       </div>
                     </td>
                     <td className='px-6 py-4'>
-                      <Badge variant='outline' className='bg-purple-50 text-purple-700 border-purple-200'>
+                      <Badge
+                        variant='outline'
+                        className='bg-purple-50 text-purple-700 border-purple-200'
+                      >
                         Demande d&apos;abonnement
+                      </Badge>
+                    </td>
+                    <td className='px-6 py-4'>
+                      <Badge variant={req.isUpdate ? 'default' : 'secondary'}>
+                        {req.isUpdate ? 'Mise à jour' : 'Nouvel abonnement'}
                       </Badge>
                     </td>
                     <td className='px-6 py-4'>
@@ -838,39 +939,44 @@ export function FinanceTable ({
                     </td>
                     <td className='px-6 py-4'>
                       <Badge variant='secondary'>
-                        {req.status === 'APPROVED' ? 'Approuvée' : req.status === 'REJECTED' ? 'Rejetée' : 'En attente'}
+                        {req.status === 'APPROVED'
+                          ? 'Approuvée'
+                          : req.status === 'REJECTED'
+                          ? 'Rejetée'
+                          : 'En attente'}
                       </Badge>
                     </td>
                     <td className='px-6 py-4 text-right'>
                       <div className='flex justify-end gap-2'>
-                        {req.status === 'PENDING' && isAuthorized(UserRole.ADMIN) && (
-                          <>
-                            <Button
-                              size='sm'
-                              variant='outline'
-                              className='h-8'
-                              onClick={() => triggerApproveConfirm(req.id)}
-                              disabled={processingId === req.id}
-                            >
-                              {processingId === req.id ? (
-                                <Loader2 className='w-4 h-4 animate-spin mr-2' />
-                              ) : (
-                                <CheckCircle className='w-4 h-4 mr-2' />
-                              )}
-                              Approuver
-                            </Button>
-                            <Button
-                              size='sm'
-                              variant='destructive'
-                              className='h-8'
-                              onClick={() => triggerRejectConfirm(req.id)}
-                              disabled={processingId === req.id}
-                            >
-                              <AlertTriangle className='w-4 h-4 mr-2' />
-                              Rejeter
-                            </Button>
-                          </>
-                        )}
+                        {req.status === 'PENDING' &&
+                          isAuthorized(UserRole.ADMIN) && (
+                            <>
+                              <Button
+                                size='sm'
+                                variant='outline'
+                                className='h-8'
+                                onClick={() => triggerApproveConfirm(req.id)}
+                                disabled={processingId === req.id}
+                              >
+                                {processingId === req.id ? (
+                                  <Loader2 className='w-4 h-4 animate-spin mr-2' />
+                                ) : (
+                                  <CheckCircle className='w-4 h-4 mr-2' />
+                                )}
+                                Approuver
+                              </Button>
+                              <Button
+                                size='sm'
+                                variant='destructive'
+                                className='h-8'
+                                onClick={() => triggerRejectConfirm(req.id)}
+                                disabled={processingId === req.id}
+                              >
+                                <AlertTriangle className='w-4 h-4 mr-2' />
+                                Rejeter
+                              </Button>
+                            </>
+                          )}
                       </div>
                     </td>
                   </tr>
@@ -905,12 +1011,16 @@ export function FinanceTable ({
       </Dialog>
 
       {/* Dialogue de confirmation pour marquer comme retourné */}
-      <Dialog open={markReturnedDialogOpen} onOpenChange={setMarkReturnedDialogOpen}>
+      <Dialog
+        open={markReturnedDialogOpen}
+        onOpenChange={setMarkReturnedDialogOpen}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirmation de retour</DialogTitle>
             <DialogDescription>
-              Êtes-vous sûr de vouloir marquer ce prêt comme retourné ? Cette action ne peut pas être annulée.
+              Êtes-vous sûr de vouloir marquer ce prêt comme retourné ? Cette
+              action ne peut pas être annulée.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className=''>
@@ -933,7 +1043,8 @@ export function FinanceTable ({
           <DialogHeader>
             <DialogTitle>Confirmation d&apos;approbation</DialogTitle>
             <DialogDescription>
-              Êtes-vous sûr de vouloir approuver cette demande ? Cette action créera un prêt ou un abonnement actif.
+              Êtes-vous sûr de vouloir approuver cette demande ? Cette action
+              créera un prêt ou un abonnement actif.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className=''>
@@ -956,7 +1067,8 @@ export function FinanceTable ({
           <DialogHeader>
             <DialogTitle>Confirmation de rejet</DialogTitle>
             <DialogDescription>
-              Êtes-vous sûr de vouloir rejeter cette demande ? Cette action est irréversible.
+              Êtes-vous sûr de vouloir rejeter cette demande ? Cette action est
+              irréversible.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className=''>
@@ -974,14 +1086,21 @@ export function FinanceTable ({
       </Dialog>
 
       {/* Dialogue d'action d'abonnement */}
-      <Dialog open={subscriptionActionDialogOpen} onOpenChange={setSubscriptionActionDialogOpen}>
+      <Dialog
+        open={subscriptionActionDialogOpen}
+        onOpenChange={setSubscriptionActionDialogOpen}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {actionType === 'suspend' ? "Suspendre l'abonnement" : "Activer l'abonnement"}
+              {actionType === 'suspend'
+                ? "Suspendre l'abonnement"
+                : "Activer l'abonnement"}
             </DialogTitle>
             <DialogDescription>
-              Êtes-vous sûr de vouloir {actionType === 'suspend' ? 'suspendre' : 'activer'} l&apos;abonnement de {selectedSubscription?.user?.username} ?
+              Êtes-vous sûr de vouloir{' '}
+              {actionType === 'suspend' ? 'suspendre' : 'activer'}{' '}
+              l&apos;abonnement de {selectedSubscription?.user?.username} ?
             </DialogDescription>
           </DialogHeader>
           <div className='py-4 space-y-4'>
@@ -991,7 +1110,7 @@ export function FinanceTable ({
                 id='actionReason'
                 placeholder='Entrez une raison pour cette action...'
                 value={actionReason}
-                onChange={(e) => setActionReason(e.target.value)}
+                onChange={e => setActionReason(e.target.value)}
                 className='mt-2'
               />
             </div>
@@ -1000,9 +1119,13 @@ export function FinanceTable ({
                 <Checkbox
                   id='actionResumption'
                   checked={actionResumption}
-                  onCheckedChange={(checked) => setActionResumption(checked as boolean)}
+                  onCheckedChange={checked =>
+                    setActionResumption(checked as boolean)
+                  }
                 />
-                <Label htmlFor='actionResumption'>Reprendre avec les jours restants</Label>
+                <Label htmlFor='actionResumption'>
+                  Reprendre avec les jours restants
+                </Label>
               </div>
             )}
             <div>
@@ -1011,7 +1134,7 @@ export function FinanceTable ({
                 id='actionEndDate'
                 type='date'
                 value={actionEndDate}
-                onChange={(e) => setActionEndDate(e.target.value)}
+                onChange={e => setActionEndDate(e.target.value)}
                 className='mt-2'
               />
             </div>
@@ -1038,49 +1161,89 @@ export function FinanceTable ({
       </Dialog>
 
       {/* Dialogue de détails d'abonnement */}
-      <Dialog open={subscriptionDetailsDialogOpen} onOpenChange={setSubscriptionDetailsDialogOpen}>
+      <Dialog
+        open={subscriptionDetailsDialogOpen}
+        onOpenChange={setSubscriptionDetailsDialogOpen}
+      >
         <DialogContent className='max-w-md'>
           <DialogHeader>
             <DialogTitle>Détails de l&apos;abonnement</DialogTitle>
             <DialogDescription>
-              Informations détaillées sur l&apos;abonnement de {selectedSubscriptionForDetails?.user?.username}
+              Informations détaillées sur l&apos;abonnement de{' '}
+              {selectedSubscriptionForDetails?.user?.username}
             </DialogDescription>
           </DialogHeader>
           {selectedSubscriptionForDetails && (
             <div className='py-4 space-y-4'>
               <div className='grid grid-cols-2 gap-4'>
                 <div>
-                  <Label className='text-sm font-medium text-slate-500'>Utilisateur</Label>
-                  <p className='text-sm font-medium'>{selectedSubscriptionForDetails.user?.username || 'Utilisateur inconnu'}</p>
-                  <p className='text-xs text-slate-500'>{selectedSubscriptionForDetails.user?.email}</p>
+                  <Label className='text-sm font-medium text-slate-500'>
+                    Utilisateur
+                  </Label>
+                  <p className='text-sm font-medium'>
+                    {selectedSubscriptionForDetails.user?.username ||
+                      'Utilisateur inconnu'}
+                  </p>
+                  <p className='text-xs text-slate-500'>
+                    {selectedSubscriptionForDetails.user?.email}
+                  </p>
                 </div>
                 <div>
-                  <Label className='text-sm font-medium text-slate-500'>État</Label>
-                  <Badge className={selectedSubscriptionForDetails.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-800'}>
-                    {selectedSubscriptionForDetails.isActive ? 'Actif' : 'Inactif'}
+                  <Label className='text-sm font-medium text-slate-500'>
+                    État
+                  </Label>
+                  <Badge
+                    className={
+                      selectedSubscriptionForDetails.isActive
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-slate-100 text-slate-800'
+                    }
+                  >
+                    {selectedSubscriptionForDetails.isActive
+                      ? 'Actif'
+                      : 'Inactif'}
                   </Badge>
                 </div>
               </div>
               <div className='grid grid-cols-2 gap-4'>
                 <div>
-                  <Label className='text-sm font-medium text-slate-500'>Date de début</Label>
-                  <p className='text-sm'>{new Date(selectedSubscriptionForDetails.startDate).toLocaleDateString()}</p>
+                  <Label className='text-sm font-medium text-slate-500'>
+                    Date de début
+                  </Label>
+                  <p className='text-sm'>
+                    {new Date(
+                      selectedSubscriptionForDetails.startDate
+                    ).toLocaleDateString()}
+                  </p>
                 </div>
                 <div>
-                  <Label className='text-sm font-medium text-slate-500'>Date de fin</Label>
-                  <p className='text-sm'>{new Date(selectedSubscriptionForDetails.endDate).toLocaleDateString()}</p>
+                  <Label className='text-sm font-medium text-slate-500'>
+                    Date de fin
+                  </Label>
+                  <p className='text-sm'>
+                    {new Date(
+                      selectedSubscriptionForDetails.endDate
+                    ).toLocaleDateString()}
+                  </p>
                 </div>
               </div>
               <div>
-                <Label className='text-sm font-medium text-slate-500'>Type d&apos;abonnement</Label>
+                <Label className='text-sm font-medium text-slate-500'>
+                  Type d&apos;abonnement
+                </Label>
                 <p className='text-sm'>{selectedSubscriptionForDetails.type}</p>
               </div>
               <div>
-                <Label className='text-sm font-medium text-slate-500'>Jours restants</Label>
+                <Label className='text-sm font-medium text-slate-500'>
+                  Jours restants
+                </Label>
                 <p className='text-sm'>
                   {(() => {
                     const daysLeft = Math.ceil(
-                      (new Date(selectedSubscriptionForDetails.endDate).getTime() - new Date().getTime()) /
+                      (new Date(
+                        selectedSubscriptionForDetails.endDate
+                      ).getTime() -
+                        new Date().getTime()) /
                         (1000 * 3600 * 24)
                     )
                     if (!selectedSubscriptionForDetails.isActive) return '-'
@@ -1091,7 +1254,10 @@ export function FinanceTable ({
             </div>
           )}
           <DialogFooter>
-            <Button variant='outline' onClick={() => setSubscriptionDetailsDialogOpen(false)}>
+            <Button
+              variant='outline'
+              onClick={() => setSubscriptionDetailsDialogOpen(false)}
+            >
               Fermer
             </Button>
           </DialogFooter>

@@ -1,5 +1,19 @@
 // Définition des plans disponibles en dur (ou via une config)
 export const PRICING_PLANS = {
+  DAILY: {
+    id: 'plan_daily',
+    name: 'Journalier',
+    price: 1,
+    days: 1,
+    description: 'Accès pour une journée'
+  },
+  WEEKLY: {
+    id: 'plan_weekly',
+    name: 'Hebdomadaire',
+    price: 5,
+    days: 7,
+    description: 'Accès complet pour 7 jours'
+  },
   MONTHLY: {
     id: 'plan_monthly',
     name: 'Mensuel',

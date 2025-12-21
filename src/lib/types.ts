@@ -364,7 +364,7 @@ export type DashboardSubscriptionRequest = Prisma.SubscriptionRequestGetPayload<
 }>;
 
 // Mise à jour des types d'entités financières
-export type FinanceEntityType = 'active-loans' | 'history' | 'requests' | 'subscriptions' | 'payments' | 'loans';
+export type FinanceEntityType = 'loans' | 'history' | 'requests' | 'subscriptions' | 'payments' | 'loans';
 
 // Import RequestStatus for use in filtering
 export { RequestStatus } from '@prisma/client';

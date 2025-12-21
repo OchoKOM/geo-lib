@@ -1,14 +1,9 @@
-# TODO: Add Suspension and Activation Options to Dialog
+# TODO: Reorganize Pricing Page
 
 ## Tasks
-- [x] Update FinanceTable.tsx dialog to include resumption checkbox for activation
-- [x] Add endDate date input field for both suspend and activate actions
-- [x] Update state management for new fields
-- [ ] Add "View Details" option in subscription actions dropdown
-- [ ] Create subscription details dialog
-- [ ] Test the dialog functionality
-
-## Current Status
-- Form fields have been added to the subscription action dialog
-- Need to add view details functionality for subscriptions
-- Backend functions expect type, resumption, and endDate parameters
+- [ ] Define proper TypeScript types for pricing plans
+- [ ] Update PricingCard component to remove 'any' types and add color prop
+- [ ] Reorganize pricing plans into two sections (main plans first, others below)
+- [ ] Assign different colors to each pricing card
+- [ ] Update the grid layout in the pricing page
+- [ ] Test the changes and ensure proper rendering
