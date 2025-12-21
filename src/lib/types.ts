@@ -93,6 +93,14 @@ export type DashBoardAuthorProfile = Prisma.AuthorProfileGetPayload<{
         dateOfBirth: true,
       }
     }
+    books: {
+      include: {
+        coverImage: true,
+        documentFile: true,
+        department: true,
+        academicYear: true,
+      }
+    }
   }
 }>
 
@@ -267,6 +275,9 @@ export type DashboardLoan = Prisma.LoanGetPayload<{
       };
     };
     book: {
+      include: {
+        coverImage: true,
+      };
       select: {
         id: true;
         title: true;
