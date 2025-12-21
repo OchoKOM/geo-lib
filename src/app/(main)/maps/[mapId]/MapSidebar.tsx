@@ -252,7 +252,7 @@ export default function MapSidebar({
                             <Textarea
                             value={studyAreaDescription}
                             onChange={e => setStudyAreaDescription(e.target.value)}
-                            rows={4}
+                            maxRows={4}
                             />
                         </div>
                     </div>

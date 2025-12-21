@@ -27,7 +27,7 @@ export function DashboardSidebar({
   return (
     <div
       className={cn(
-        "flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 transition-all duration-300 z-20 shadow-2xl max-h-full fixed md:relative",
+        "flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 transition-all duration-300 z-20 shadow-2xl max-h-[calc(100vh-4rem)] h-full fixed md:relative",
         sidebarOpen ? 'w-72 translate-x-0' : 'w-0 -translate-x-full opacity-0 overflow-hidden'
       )}
     >

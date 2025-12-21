@@ -10,13 +10,6 @@ import {
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select'
 import { UploadDropzone } from '@/lib/uploadthing'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -186,6 +179,7 @@ export function DashboardForm ({
           />
           <Textarea
             className='dark:bg-slate-800 dark:border-slate-700 dark:text-white'
+            maxRows={5}
             placeholder='Description'
             value={sa.description || ''}
             onChange={e => updateData('description', e.target.value)}
@@ -238,6 +232,7 @@ export function DashboardForm ({
           <Textarea
             className='dark:bg-slate-800 dark:border-slate-700 min-h-[100px]'
             placeholder="Biographie de l'auteur..."
+            maxRows={5}
             value={ghost.biography || ''}
             onChange={e => updateData('biography', e.target.value)}
           />
@@ -258,6 +253,7 @@ export function DashboardForm ({
             <Textarea
               className='min-h-[150px] dark:bg-slate-800 dark:border-slate-700 dark:text-white'
               placeholder="Biographie complète de l'auteur..."
+              maxRows={5}
               // @ts-expect-error dynamic handling
               value={data.biography || ''}
               onChange={e => updateData('biography', e.target.value)}
@@ -293,7 +289,8 @@ export function DashboardForm ({
           <div className='md:col-span-2'>
             <Textarea
               className='dark:bg-slate-800 dark:border-slate-700'
-              placeholder='Description...'
+              placeholder='Resumé...'
+              maxRows={5}
               value={bk.description || ''}
               onChange={e => updateData('description', e.target.value)}
             />
