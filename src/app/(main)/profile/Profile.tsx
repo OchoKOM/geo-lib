@@ -23,6 +23,7 @@ import AvatarUploadDialog from './AvatarUploadDialog'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
+import kyInstance from '@/lib/ky'
 
 function SubmitButton () {
   const { pending } = useFormStatus()
@@ -54,9 +55,9 @@ export default function Profile() {
 
   useEffect(() => {
     if (user?.role === UserRole.AUTHOR) {
-      fetch('/api/authors/profile')
+      kyInstance('/api/authors/profile')
         .then(res => res.json())
-        .then(data => setAuthorProfile(data))
+        .then(data => setAuthorProfile(data as { biography: string }))
         .catch(err => console.error('Failed to fetch author profile', err))
     }
   }, [user])

@@ -16,23 +16,52 @@ import {
   AlertTriangle,
   Save,
   Camera,
+  Trash2
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Combobox, ComboboxContent, ComboboxItem, ComboboxTrigger, ComboboxValue } from '@/components/ui/combobox'
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxItem,
+  ComboboxTrigger,
+  ComboboxValue
+} from '@/components/ui/combobox'
 import { BookType } from '@prisma/client'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import kyInstance from '@/lib/ky'
-import { DashboardLoan, DashboardSubscription, DashBoardAuthorProfile, UserRole, DashboardDepartment, DashboardStudyArea } from '@/lib/types'
-import { updateUserProfile } from '@/app/(main)/profile/actions'
+import {
+  DashboardLoan,
+  DashboardSubscription,
+  DashBoardAuthorProfile,
+  UserRole,
+  DashboardDepartment,
+  DashboardStudyArea
+} from '@/lib/types'
+import { updateUserProfile, deleteAvatar } from '@/app/(main)/profile/actions'
 import AvatarUploadDialog from '@/app/(main)/profile/AvatarUploadDialog'
+import {
+  getUserProfile,
+  getAuthorProfile,
+  getDepartments,
+  getStudyAreas,
+  addBook,
+  deleteBook,
+} from './actions'
 
 interface UserProfileData {
   id: string
@@ -53,28 +82,52 @@ interface UserProfileProps {
   username: string
 }
 
-function ProfileEditDialog({ profileData, onProfileUpdate }: {
+  function ProfileEditDialog ({
+  profileData,
+  onProfileUpdate
+}: {
   profileData: UserProfileData
   onProfileUpdate: () => void
 }) {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { user } = useAuth()
   const { refresh } = useRouter()
-  const [authorProfile, setAuthorProfile] = useState<{ biography: string } | null>(null)
+  const [authorProfile, setAuthorProfile] = useState<{
+    biography: string
+  } | null>(null)
   const [state, formAction] = useActionState(updateUserProfile, {
     message: '',
     success: false
   })
 
   // Gestion de l'état local pour l'affichage immédiat
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(profileData.avatarUrl || null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(
+    profileData.avatarUrl || null
+  )
   const [avatarId, setAvatarId] = useState<string | null>(null)
+  const [deleteAvatarDialogOpen, setDeleteAvatarDialogOpen] = useState(false)
+
+  const handleDeleteAvatar = () => {
+    setDeleteAvatarDialogOpen(true)
+  }
+
+  const confirmDeleteAvatar = async () => {
+    if (user) {
+      const res = await deleteAvatar(user.id)
+      if (res.success) {
+        showToast(res.message, 'success')
+        setAvatarUrl(null)
+        setAvatarId(null)
+      } else {
+        showToast(res.message, 'destructive')
+      }
+    }
+    setDeleteAvatarDialogOpen(false)
+  }
 
   useEffect(() => {
     if (profileData.role === UserRole.AUTHOR) {
-      fetch('/api/authors/profile')
-        .then(res => res.json())
-        .then((data: { biography: string }) => setAuthorProfile(data))
+      getAuthorProfile()
+        .then(data => setAuthorProfile(data))
         .catch(err => console.error('Failed to fetch author profile', err))
     }
   }, [profileData.role])
@@ -91,7 +144,7 @@ function ProfileEditDialog({ profileData, onProfileUpdate }: {
     }
   }, [refresh, state, onProfileUpdate])
 
-  function SubmitButton() {
+  function SubmitButton () {
     const { pending } = useFormStatus()
     return (
       <Button
@@ -117,14 +170,14 @@ function ProfileEditDialog({ profileData, onProfileUpdate }: {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline">
-          <Edit className="w-4 h-4 mr-2" />
-          Edit Profile
+        <Button variant='outline'>
+          <Edit className='w-4 h-4 mr-2' />
+          Modifier le Profil
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className='max-w-4xl max-h-[90vh] overflow-y-auto'>
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
+          <DialogTitle className='flex items-center gap-3'>
             <Camera className='w-5 h-5' />
             Modifier le Profil
           </DialogTitle>
@@ -145,8 +198,23 @@ function ProfileEditDialog({ profileData, onProfileUpdate }: {
                   setAvatarUrl(newUrl)
                 }}
               />
+              {avatarUrl && (
+                <div className='mt-4'>
+                  <Button
+                    type='button'
+                    variant='destructive'
+                    size='sm'
+                    onClick={handleDeleteAvatar}
+                    className='w-full sm:w-auto'
+                  >
+                    <Trash2 className='w-4 h-4 mr-2' />
+                    Supprimer l&apos;avatar
+                  </Button>
+                </div>
+              )}
               <p className='mt-4 text-xs text-slate-500 dark:text-slate-400'>
-                Format carré recommandé.<br/>
+                Format carré recommandé.
+                <br />
                 Cliquez sur l&apos;image pour modifier ou supprimer.
               </p>
             </div>
@@ -201,6 +269,7 @@ function ProfileEditDialog({ profileData, onProfileUpdate }: {
                   defaultValue={profileData.bio || ''}
                   className='dark:bg-slate-800 dark:border-slate-700 dark:text-white min-h-[100px] focus:ring-blue-500'
                   placeholder='Une courte description de vous-même...'
+                  maxRows={5}
                 />
               </div>
             </div>
@@ -216,7 +285,8 @@ function ProfileEditDialog({ profileData, onProfileUpdate }: {
                 </h2>
               </div>
               <p className='text-sm text-blue-700 dark:text-blue-300'>
-                Ces informations apparaîtront sur vos publications et travaux de recherche.
+                Ces informations apparaîtront sur vos publications et travaux de
+                recherche.
               </p>
               <div className='space-y-2'>
                 <label className='text-sm font-medium text-slate-700 dark:text-slate-300'>
@@ -227,6 +297,7 @@ function ProfileEditDialog({ profileData, onProfileUpdate }: {
                   defaultValue={authorProfile?.biography || ''}
                   className='dark:bg-slate-800 dark:border-slate-700 dark:text-white min-h-[150px] focus:ring-blue-500'
                   placeholder='Votre parcours académique, universités, domaines de recherche...'
+                  maxRows={10}
                 />
               </div>
             </div>
@@ -236,12 +307,33 @@ function ProfileEditDialog({ profileData, onProfileUpdate }: {
             <SubmitButton />
           </div>
         </form>
+
+        {/* Delete Avatar Confirmation Dialog */}
+        <Dialog open={deleteAvatarDialogOpen} onOpenChange={setDeleteAvatarDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Supprimer l&apos;avatar</DialogTitle>
+            </DialogHeader>
+            <p>Êtes-vous sûr de vouloir supprimer votre avatar ? Cette action ne peut pas être annulée.</p>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button variant='outline'>Annuler</Button>
+              </DialogClose>
+              <Button variant='destructive' onClick={confirmDeleteAvatar}>
+                Supprimer
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   )
 }
 
-function AddBookDialog({ profileData, onBookAdded }: {
+function AddBookDialog ({
+  profileData,
+  onBookAdded
+}: {
   profileData: UserProfileData
   onBookAdded: () => void
 }) {
@@ -252,7 +344,7 @@ function AddBookDialog({ profileData, onBookAdded }: {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    type: BookType.THESE,
+    type: BookType.AUTRE,
     departmentId: '',
     studyAreaIds: [] as string[]
   })
@@ -260,71 +352,60 @@ function AddBookDialog({ profileData, onBookAdded }: {
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
-        const response = await kyInstance('/api/study-areas/departments')
-        const data = await response.json()
-        // @ts-expect-error TS2322
-        setDepartments(data.departments)
+        const data = await getDepartments()
+        setDepartments(data)
       } catch (error) {
+        showToast("Une erreur s'est produite lors du chargement des départements.", 'warning')
         console.error('Failed to fetch departments:', error)
       }
     }
     fetchDepartments()
-  }, [])
-
-  useEffect(() => {
-    if (formData.departmentId) {
-      const fetchStudyAreas = async () => {
-        try {
-          const response = await kyInstance(`/api/study-areas?departmentId=${formData.departmentId}`)
-          const data = await response.json()
-          // @ts-expect-error TS2322
-          setStudyAreas(data.studyAreas)
-        } catch (error) {
-          console.error('Failed to fetch study areas:', error)
-        }
+    const fetchStudyAreas = async () => {
+      try {
+        const data = await getStudyAreas()
+        setStudyAreas(data)
+      } catch (error) {
+        console.error('Failed to fetch study areas:', error)
+        showToast("Une erreur s'est produite lors du chargement des zones d'étude.", 'warning')
       }
-      fetchStudyAreas()
-    } else {
-      setStudyAreas([])
     }
-  }, [formData.departmentId])
+      fetchStudyAreas()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.title.trim() || !formData.description.trim() || !formData.departmentId) {
-      showToast('Please fill in all required fields', 'destructive')
+    if (
+      !formData.title.trim() ||
+      !formData.departmentId
+    ) {
+      showToast("Veuillez remplir tous les champs obligatoires.", 'warning')
       return
     }
 
     setLoading(true)
     try {
-      const payload = {
+      await addBook({
         title: formData.title,
-        description: formData.description,
+        description: formData.description || '',
         type: formData.type,
         departmentId: formData.departmentId,
         studyAreaIds: formData.studyAreaIds,
-        authorId: profileData.id
-      }
+        authorId: profileData.authorProfile?.id || null
+      })
 
-      const response = await kyInstance.post('/api/books', { json: payload })
-      if (response.ok) {
-        showToast('Book added successfully!', 'success')
-        setOpen(false)
-        setFormData({
-          title: '',
-          description: '',
-          type: BookType.THESE,
-          departmentId: '',
-          studyAreaIds: []
-        })
-        onBookAdded()
-      } else {
-        throw new Error('Failed to add book')
-      }
+      showToast("Livre ajouté avec succès!", 'success')
+      setOpen(false)
+      setFormData({
+        title: '',
+        description: '',
+        type: BookType.AUTRE,
+        departmentId: '',
+        studyAreaIds: []
+      })
+      onBookAdded()
     } catch (error) {
       console.error('Error adding book:', error)
-      showToast('Failed to add book. Please try again.', 'destructive')
+      showToast("Une erreur s'est produite lors de l'ajout du livre.", 'warning')
     } finally {
       setLoading(false)
     }
@@ -333,35 +414,41 @@ function AddBookDialog({ profileData, onBookAdded }: {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Upload className="w-4 h-4 mr-2" />
-          Add New Book
+        <Button variant='outline' size='sm'>
+          <Upload className='w-4 h-4 mr-2' />
+          Ajouter un Nouveau Livre
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className='max-w-2xl'>
         <DialogHeader>
-          <DialogTitle>Add New Book</DialogTitle>
+          <DialogTitle>Ajouter un Nouveau Livre</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Title *</label>
+        <form onSubmit={handleSubmit} className='space-y-4'>
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+            <div className='space-y-2'>
+              <label className='text-sm font-medium'>Titre <span className="text-destructive">*</span></label>
               <Input
                 value={formData.title}
-                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                placeholder="Book title"
+                onChange={e =>
+                  setFormData(prev => ({ ...prev, title: e.target.value }))
+                }
+                placeholder='Titre du livre'
                 required
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Type *</label>
-              {/* @ts-expect-error TS2322 */}
-              <Combobox value={formData.type} onValueChange={(value) => setFormData(prev => ({ ...prev, type: value as BookType }))}>
+            <div className='space-y-2'>
+              <label className='text-sm font-medium'>Type <span className="text-destructive">*</span></label>
+              <Combobox
+                value={formData.type}
+                // @ts-expect-error - TypeScript issue with enum and string union
+                onValueChange={value => setFormData(prev => ({ ...prev, type: value as BookType }))
+                }
+              >
                 <ComboboxTrigger>
-                  <ComboboxValue placeholder="Select type" />
+                  <ComboboxValue placeholder='Type de travail...' />
                 </ComboboxTrigger>
                 <ComboboxContent>
-                  {Object.values(BookType).map((type) => (
+                  {Object.values(BookType).map(type => (
                     <ComboboxItem key={type} value={type}>
                       {type}
                     </ComboboxItem>
@@ -370,40 +457,67 @@ function AddBookDialog({ profileData, onBookAdded }: {
               </Combobox>
             </div>
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Description *</label>
+          <div className='space-y-2'>
+            <label className='text-sm font-medium'>Resumé</label>
             <Textarea
               value={formData.description}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              placeholder="Book description"
-              required
+              onChange={e =>
+                setFormData(prev => ({ ...prev, description: e.target.value }))
+              }
+              placeholder='Un resumé de votre travail...'
+              maxRows={5}
             />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Department *</label>
-              <Combobox value={formData.departmentId} onValueChange={(value) => setFormData(prev => ({ ...prev, departmentId: value, studyAreaIds: [] }))}>
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+            <div className='space-y-2'>
+              <label className='text-sm font-medium'>Département <span className="text-destructive">*</span></label>
+              <Combobox
+                value={formData.departmentId}
+                onValueChange={value =>
+                  setFormData(prev => ({
+                    ...prev,
+                    departmentId: value,
+                    studyAreaIds: []
+                  }))
+                }
+              >
                 <ComboboxTrigger>
-                  <ComboboxValue placeholder="Select department" />
+                  <ComboboxValue placeholder="Choisir un departement" />
                 </ComboboxTrigger>
                 <ComboboxContent>
-                  {departments.map((dept) => (
-                    <ComboboxItem key={dept.id} value={dept.id}>
+                  {departments.map(dept => (
+                    <ComboboxItem
+                      key={dept.id}
+                      value={dept.id}
+                      label={dept.name}
+                    >
                       {dept.name}
                     </ComboboxItem>
                   ))}
                 </ComboboxContent>
               </Combobox>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Study Areas</label>
-              <Combobox value={formData.studyAreaIds.join(',')} onValueChange={(value) => setFormData(prev => ({ ...prev, studyAreaIds: value ? value.split(',') : [] }))}>
+            <div className='space-y-2'>
+              <label className='text-sm font-medium'>Zones d&apos;Etudes</label>
+              <Combobox
+                value={formData.studyAreaIds.join(',')}
+                onValueChange={value =>
+                  setFormData(prev => ({
+                    ...prev,
+                    studyAreaIds: value ? value.split(',') : []
+                  }))
+                }
+              >
                 <ComboboxTrigger>
-                  <ComboboxValue placeholder="Select study areas" />
+                  <ComboboxValue placeholder="Choisir une Zone" />
                 </ComboboxTrigger>
                 <ComboboxContent>
-                  {studyAreas.map((area) => (
-                    <ComboboxItem key={area.id} value={area.id}>
+                  {studyAreas.map(area => (
+                    <ComboboxItem
+                      key={area.id}
+                      value={area.id}
+                      label={area.name}
+                    >
                       {area.name}
                     </ComboboxItem>
                   ))}
@@ -412,10 +526,10 @@ function AddBookDialog({ profileData, onBookAdded }: {
             </div>
           </div>
           <DialogFooter>
-            <Button type="submit" disabled={loading}>
+            <Button type='submit' disabled={loading}>
               {loading ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <Loader2 className='w-4 h-4 mr-2 animate-spin' />
                   Adding...
                 </>
               ) : (
@@ -429,45 +543,34 @@ function AddBookDialog({ profileData, onBookAdded }: {
   )
 }
 
-export default function UserProfile({ username }: UserProfileProps) {
+export default function UserProfile ({ username }: UserProfileProps) {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { user: currentUser } = useAuth()
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const router = useRouter()
   const [profileData, setProfileData] = useState<UserProfileData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const response = await kyInstance(`/api/users/${username}`);
-        if (!response.ok) {
-          if (response.status === 404) {
-            setError('User not found')
-          } else {
-            throw new Error('Failed to fetch profile')
-          }
-          return
-        }
-        const data = await response.json()
-        // @ts-expect-error TS2322
-        setProfileData(data.user)
-      } catch (err) {
-        console.error('Error fetching profile:', err)
-        setError('Failed to load profile')
-      } finally {
-        setLoading(false)
-      }
+  async function fetchProfileData (username: string) {
+    try {
+      const data = await getUserProfile(username)
+      setProfileData(data)
+      setLoading(false)
+    } catch (err) {
+      console.error('Failed to fetch user profile:', err)
+      setError('Failed to load profile. Please try again later.')
+      setLoading(false)
     }
+  }
 
-    fetchProfile()
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchProfileData(username)
   }, [username])
 
   if (loading) {
     return (
-      <div className="flex h-[50vh] w-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className='flex h-[50vh] w-full items-center justify-center'>
+        <Loader2 className='h-8 w-8 animate-spin text-blue-600' />
       </div>
     )
   }
@@ -483,7 +586,8 @@ export default function UserProfile({ username }: UserProfileProps) {
             Erreur de Chargement du Profil
           </h3>
           <p className='text-slate-500 dark:text-slate-400 mb-6'>
-            Une erreur s&apos;est produite lors du chargement de ce profil. Veuillez réessayer plus tard.
+            Une erreur s&apos;est produite lors du chargement de ce profil.
+            Veuillez réessayer plus tard.
           </p>
         </div>
       </div>
@@ -493,45 +597,57 @@ export default function UserProfile({ username }: UserProfileProps) {
   const { loans, subscription, authorProfile, isOwnProfile } = profileData
 
   return (
-    <div className="max-w-7xl mx-auto p-6 space-y-8">
+    <div className='max-w-7xl mx-auto p-6 space-y-8'>
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-        <div className="flex items-start gap-4">
-          <Avatar className="w-20 h-20">
-            <AvatarImage src={profileData.avatarUrl || undefined} alt={profileData.name || profileData.username} />
-            <AvatarFallback className="text-lg">
-              {(profileData.name || profileData.username).charAt(0).toUpperCase()}
+      <div className='flex flex-col md:flex-row md:items-start justify-between gap-6'>
+        <div className='flex items-start gap-4'>
+          <Avatar className='w-20 h-20'>
+            <AvatarImage
+              src={profileData.avatarUrl || undefined}
+              alt={profileData.name || profileData.username}
+            />
+            <AvatarFallback className='text-lg'>
+              {(profileData.name || profileData.username)
+                .charAt(0)
+                .toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          <div className="space-y-2">
+          <div className='space-y-2'>
             <div>
-              <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+              <h1 className='text-3xl font-bold text-slate-900 dark:text-white'>
                 {profileData.name || profileData.username}
               </h1>
-              <p className="text-slate-500 dark:text-slate-400">@{profileData.username}</p>
+              <p className='text-slate-500 dark:text-slate-400'>
+                @{profileData.username}
+              </p>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3" />
+            <div className='flex items-center gap-2'>
+              <Badge variant='secondary' className='flex items-center gap-1'>
+                <ShieldCheck className='w-3 h-3' />
                 {profileData.role}
               </Badge>
-              <span className="text-sm text-slate-500 dark:text-slate-400">
+              <span className='text-sm text-slate-500 dark:text-slate-400'>
                 Joined {new Date(profileData.createdAt).toLocaleDateString()}
               </span>
             </div>
             {profileData.bio && (
-              <p className="text-slate-700 dark:text-slate-300 max-w-2xl">{profileData.bio}</p>
+              <p className='text-slate-700 dark:text-slate-300 max-w-2xl'>
+                {profileData.bio}
+              </p>
             )}
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className='flex gap-2'>
           {isOwnProfile && (
             <>
-              <ProfileEditDialog profileData={profileData} onProfileUpdate={() => setProfileData(null)} />
-              <Button variant="outline">
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
+              <ProfileEditDialog
+                profileData={profileData}
+                onProfileUpdate={() => setProfileData(null)}
+              />
+              <Button variant='outline'>
+                <LogOut className='w-4 h-4 mr-2' />
+                Déconnexion
               </Button>
             </>
           )}
@@ -539,40 +655,45 @@ export default function UserProfile({ username }: UserProfileProps) {
       </div>
 
       {/* Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
         {/* Left Column - Overview */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className='lg:col-span-2 space-y-6'>
           {/* Active Loans */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BookOpen className="w-5 h-5" />
+              <CardTitle className='flex items-center gap-2'>
+                <BookOpen className='w-5 h-5' />
                 Active Loans ({loans.length})
               </CardTitle>
             </CardHeader>
             <CardContent>
               {loans.length === 0 ? (
-                <p className="text-slate-500 dark:text-slate-400">No active loans</p>
+                <p className='text-slate-500 dark:text-slate-400'>
+                  No active loans
+                </p>
               ) : (
-                <div className="space-y-4">
-                  {loans.map((loan) => (
-                    <div key={loan.id} className="flex items-center gap-4 p-4 border rounded-lg">
+                <div className='space-y-4'>
+                  {loans.map(loan => (
+                    <div
+                      key={loan.id}
+                      className='flex items-center gap-4 p-4 border rounded-lg'
+                    >
                       {loan.book?.coverImage?.url ? (
                         <Image
                           src={loan.book.coverImage.url}
                           alt={loan.book.title}
                           width={40}
                           height={60}
-                          className="object-cover rounded"
+                          className='object-cover rounded'
                         />
                       ) : (
-                        <div className="w-10 h-15 bg-slate-200 dark:bg-slate-700 rounded flex items-center justify-center">
-                          <BookOpen className="w-4 h-4 text-slate-400" />
+                        <div className='w-10 h-15 bg-slate-200 dark:bg-slate-700 rounded flex items-center justify-center'>
+                          <BookOpen className='w-4 h-4 text-slate-400' />
                         </div>
                       )}
-                      <div className="flex-1">
-                        <h4 className="font-medium">{loan.book?.title}</h4>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                      <div className='flex-1'>
+                        <h4 className='font-medium'>{loan.book?.title}</h4>
+                        <p className='text-sm text-slate-500 dark:text-slate-400'>
                           Due: {new Date(loan.dueDate).toLocaleDateString()}
                         </p>
                       </div>
@@ -587,44 +708,91 @@ export default function UserProfile({ username }: UserProfileProps) {
           {authorProfile && (
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Upload className="w-5 h-5" />
+                <CardTitle className='flex items-center gap-2'>
+                  <Upload className='w-5 h-5' />
                   Uploaded Books ({authorProfile.books.length})
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {authorProfile.books.length === 0 ? (
-                  <p className="text-slate-500 dark:text-slate-400">No books uploaded yet</p>
+                  <p className='text-slate-500 dark:text-slate-400'>
+                    No books uploaded yet
+                  </p>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {authorProfile.books.map((book) => (
-                      <div key={book.id} className="flex gap-3 p-3 border rounded-lg">
+                  <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                    {authorProfile.books.map(book => (
+                      <div
+                        key={book.id}
+                        className='flex gap-3 p-3 border rounded-lg'
+                      >
                         {book.coverImage?.url ? (
                           <Image
                             src={book.coverImage.url}
                             alt={book.title}
                             width={40}
                             height={60}
-                            className="object-cover rounded"
+                            className='object-cover rounded'
                           />
                         ) : (
-                          <div className="w-10 h-15 bg-slate-200 dark:bg-slate-700 rounded flex items-center justify-center">
-                            <BookOpen className="w-4 h-4 text-slate-400" />
+                          <div className='w-10 h-15 bg-slate-200 dark:bg-slate-700 rounded flex items-center justify-center'>
+                            <BookOpen className='w-4 h-4 text-slate-400' />
                           </div>
                         )}
-                        <div className="flex-1">
-                          <h4 className="font-medium text-sm">{book.title}</h4>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                        <div className='flex-1'>
+                          <h4 className='font-medium text-sm'>{book.title}</h4>
+                          <p className='text-xs text-slate-500 dark:text-slate-400'>
                             {book.type} • {book.department?.name}
                           </p>
                         </div>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              className='text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20'
+                            >
+                              <Trash2 className='w-4 h-4' />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Delete Book</DialogTitle>
+                            </DialogHeader>
+                            <p>Are you sure you want to delete &quot;{book.title}&quot; ? This action cannot be undone.</p>
+                            <DialogFooter>
+                              <DialogClose className={buttonVariants({variant: "outline"})}>
+                                Cancel
+                              </DialogClose>
+                              <Button
+                                variant='destructive'
+                                onClick={async () => {
+                                  try {
+                                    await deleteBook(book.id)
+                                    showToast('Book deleted successfully', 'success')
+                                    fetchProfileData(username)
+                                  } catch (error) {
+                                    console.error('Error deleting book:', error)
+                                    showToast('Failed to delete book', 'destructive')
+                                  }
+                                }}
+                              >
+                                Delete
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
                       </div>
                     ))}
                   </div>
                 )}
                 {isOwnProfile && (
-                  <div className="mt-4 pt-4 border-t">
-                    <AddBookDialog profileData={profileData} onBookAdded={() => setProfileData(null)} />
+                  <div className='mt-4 pt-4 border-t'>
+                    <AddBookDialog
+                      profileData={profileData}
+                      onBookAdded={() => {
+                        fetchProfileData(username)
+                      }}
+                    />
                   </div>
                 )}
               </CardContent>
@@ -633,34 +801,38 @@ export default function UserProfile({ username }: UserProfileProps) {
         </div>
 
         {/* Right Column - Subscription & Actions */}
-        <div className="space-y-6">
+        <div className='space-y-6'>
           {/* Subscription Status */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="w-5 h-5" />
+              <CardTitle className='flex items-center gap-2'>
+                <Calendar className='w-5 h-5' />
                 Subscription
               </CardTitle>
             </CardHeader>
             <CardContent>
               {subscription ? (
-                <div className="space-y-2">
-                  <Badge variant="default" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                <div className='space-y-2'>
+                  <Badge
+                    variant='default'
+                    className='bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                  >
                     Active
                   </Badge>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                  <p className='text-sm text-slate-600 dark:text-slate-400'>
                     Type: {subscription.type}
                   </p>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    Expires: {new Date(subscription.endDate).toLocaleDateString()}
+                  <p className='text-sm text-slate-600 dark:text-slate-400'>
+                    Expires:{' '}
+                    {new Date(subscription.endDate).toLocaleDateString()}
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <Badge variant="secondary">No Active Subscription</Badge>
+                <div className='space-y-2'>
+                  <Badge variant='secondary'>No Active Subscription</Badge>
                   {isOwnProfile && (
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href="/pricing">Subscribe</Link>
+                    <Button variant='outline' size='sm' asChild>
+                      <Link href='/pricing'>Subscribe</Link>
                     </Button>
                   )}
                 </div>
@@ -674,16 +846,26 @@ export default function UserProfile({ username }: UserProfileProps) {
               <CardHeader>
                 <CardTitle>Quick Actions</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
-                <Button variant="outline" size="sm" className="w-full justify-start" asChild>
-                  <Link href="/dashboard">
-                    <Eye className="w-4 h-4 mr-2" />
+              <CardContent className='space-y-2'>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  className='w-full justify-start'
+                  asChild
+                >
+                  <Link href='/dashboard'>
+                    <Eye className='w-4 h-4 mr-2' />
                     View Dashboard
                   </Link>
                 </Button>
-                <Button variant="outline" size="sm" className="w-full justify-start" asChild>
-                  <Link href="/loans">
-                    <BookOpen className="w-4 h-4 mr-2" />
+                <Button
+                  variant='outline'
+                  size='sm'
+                  className='w-full justify-start'
+                  asChild
+                >
+                  <Link href='/loans'>
+                    <BookOpen className='w-4 h-4 mr-2' />
                     My Loans
                   </Link>
                 </Button>

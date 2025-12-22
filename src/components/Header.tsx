@@ -263,7 +263,7 @@ export default function Header () {
                   </span>
                 </div>
                 <Link
-                  href='/profile'
+                  href={`/users/${user?.username}`}
                   passHref
                   className={cn(
                     buttonVariants({ size: 'icon', variant: 'outline' }),
@@ -351,7 +351,7 @@ export default function Header () {
             <>
               <li>
                 <Link
-                  href='/profile'
+                  href={`/users/${user?.username}`}
                   passHref
                   className='flex items-center gap-1 px-2'
                 >

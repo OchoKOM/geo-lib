@@ -40,12 +40,6 @@ export type DashboardDepartment = Prisma.DepartmentGetPayload<{
         name: true;
       };
     };
-    studyAreas: {
-        select: {
-            id: true;
-            name: true;
-        }
-    };
   };
 }>;
 
@@ -68,7 +62,6 @@ export type DashboardStudyArea = Prisma.StudyAreaGetPayload<{
     id: true;
     name: true;
     description: true;
-    departmentId: true;
   };
 }>;
 

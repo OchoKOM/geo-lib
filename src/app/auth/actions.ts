@@ -78,7 +78,7 @@ export async function registerAction(
         if (continueUrl && continueUrl.startsWith('/')) {
             redirect(continueUrl);
         } else {
-            redirect('/profile'); // Redirection par défaut
+            redirect(`/users/${validatedUsername}`); // Redirection par défaut
         }
     }
 
@@ -129,12 +129,8 @@ export async function loginAction(
 
     // 4. Redirection
     if (result.success) {
-        // Logique de priorité pour la redirection :
-        // 1. 'continue' (notre nouveau système explicite)
-        // 2. 'callbackUrl' (système legacy ou OAuth)
-        // 3. '/profile' (défaut)
         
-        let finalRedirectUrl = '/profile';
+        let finalRedirectUrl = '/';
 
         if (continueUrl && continueUrl.startsWith('/')) {
             finalRedirectUrl = continueUrl;
